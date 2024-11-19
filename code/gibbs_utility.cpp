@@ -38,7 +38,7 @@ List Center_prob (NumericMatrix data, NumericVector sigma, NumericVector attrisi
   return prob;
 }
 
-// Same as Ceneter_prob, but sigma is a CONSTANT (double)
+// Same as Center_prob, but sigma is a CONSTANT (double)
 // [[Rcpp::export]]
 List Center_prob_2 (NumericMatrix data, double sigma, NumericVector attrisize){
   

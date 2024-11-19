@@ -1,7 +1,11 @@
+setwd("~/Documents/Split_and_merge_Gibbs_sampling/realdata_analysis")
 library(AntMAN)
 library(mcclust.ext)
 source("../code/complement_functions.R")
 
+Rcpp::sourceCpp("../code/neal_sampler.cpp")
+example = example_usage()
+example$final_assignments
 
 #=========================================================================================
 # Loading data
