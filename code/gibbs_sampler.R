@@ -253,7 +253,7 @@ gibbs_mix_con = function(G,
     M.na.curr = rmixpois(1,lambda = c(lam,lam+1),alpha = c(w_1,w_2))
     
     # total number of components
-    M.curr = k.curr+M.na.curr 
+    M.curr = k.curr+M.na.curr  # h nel paper
 
     ##################
     ### UPDATING T ###
@@ -265,7 +265,7 @@ gibbs_mix_con = function(G,
     ### SAMPLING U ###
     ##################
     
-    U.curr = rgamma(1,n,t.curr)
+    U.curr = rgamma(1, n, t.curr)
    
     #####################################
     ### MOVING COUNTER + SAVING DATA  ###

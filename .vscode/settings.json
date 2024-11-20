@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "algorithm": "cpp",
+        "string_view": "cpp",
+        "random": "cpp",
+        "ratio": "cpp"
+    }
+}

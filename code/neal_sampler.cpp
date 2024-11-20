@@ -9,6 +9,7 @@
 #include <set>
 #include <random>
 #include <gibbs_utility.cpp>
+//#include <hyperg.cpp>
 using namespace Rcpp;
 
 void print_progress_bar(int progress, int total, int bar_width = 50) {
@@ -33,6 +34,22 @@ void print_progress_bar(int progress, int total, int bar_width = 50) {
     if (progress == total) Rcpp::Rcout << std::endl;
 }
 
+NumericVector unique_classes(NumericVector c_i) {
+    /**
+     * @brief Gets unique class labels
+     * @param c_i Vector of class assignments
+     * @param index_to_del Index to exclude from unique class calculation
+     * @return NumericVector containing unique class labels
+     * @note Exported to R using Rcpp
+     */
+
+    std::set<double> unique_classes;
+    for (int i = 0; i < c_i.length(); ++i) {
+        unique_classes.insert(c_i[i]);
+    }
+    return wrap(std::vector<double>(unique_classes.begin(), unique_classes.end()));
+}
+
 NumericVector unique_classes_without_index(NumericVector c_i, int index_to_del) {
     /**
      * @brief Gets unique class labels excluding a specific index
@@ -51,132 +68,259 @@ NumericVector unique_classes_without_index(NumericVector c_i, int index_to_del) 
     return wrap(std::vector<double>(unique_classes.begin(), unique_classes.end()));
 }
 
-NumericMatrix convert_centers_to_matrix(List centers, int p) {
+NumericVector sample_initial_assignment(double K = 4, int n = 10){
     /**
-     * @brief Converts a List of centers to a NumericMatrix representation
-     * @param centers List containing cluster centers
-     * @param p Number of variables/dimensions
-     * @return NumericMatrix containing the converted center representations
-     * @note Helper function for internal use
-     */
-    int k = centers.length();  // Number of clusters
-    NumericMatrix center_matrix(k, p);
-    
-    for(int i = 0; i < k; i++) {
-        NumericVector cluster_probs = centers[i];
-        for(int j = 0; j < p; j++) {
-            center_matrix(i, j) = which_max(cluster_probs) + 1;
-        }
-    }
-    return center_matrix;
-}
-
-NumericVector calculate_class_probabilities(
-    NumericVector x_i,
-    List centers,
-    NumericVector sigma,
-    NumericVector attrisize,
-    double gamma,
-    int m,
-    const bool log_scale = false) {
-    /**
-     * @brief Calculates class probabilities using Hamming density
-     * @param x_i Observation vector
-     * @param centers List of cluster centers
-     * @param sigma Vector of cluster dispersions
-     * @param attrisize Vector of attribute sizes
-     * @param gamma Concentration parameter for new clusters
-     * @param m Number of auxiliary parameters
-     * @param log_scale Boolean indicating if calculations should be in log scale
-     * @return NumericVector of class probabilities
+     * @brief Samples initial cluster assignments
+     * @param K Number of initial clusters
+     * @return NumericVector containing initial cluster assignments
      * @note Exported to R using Rcpp
      */
-    int k_minus = centers.length();
-    int h = k_minus + m;
-    int p = x_i.length();
-    NumericMatrix center_matrix = convert_centers_to_matrix(centers, p);
-    NumericVector probabilities(h);
-    
-    // Calculate probabilities for existing classes
+    // Sample initial cluster assignments
+    NumericVector c_i(n);
+    for (int i = 0; i < n; i++) {
+        c_i[i] = R::runif(0, K);
+    }
+    return c_i;
+}
+
+NumericMatrix sample_centers(NumericVector attrisize, int number_cls){
+    /**
+     * @brief Samples initial cluster centers
+     * @param attrisize Vector of attribute sizes
+     * @param number_cls Number of clusters
+     * @return NumericVector containing initial cluster centers
+     * @note Exported to R using Rcpp
+     */
+
+    NumericMatrix centers(attrisize.length(), number_cls);
+
+    for  (int i = 0; i < attrisize.length(); i++) {
+        for (int j = 0; j < number_cls; j++) {
+            centers(i, j) = R::runif(1, attrisize[i]);
+        }
+    }   
+
+    return centers;
+}
+
+NumericMatrix sample_sigma(NumericVector attrisize, int number_cls, NumericVector u, NumericVector v, bool posterior = false){
+    /**
+     * @brief Samples initial cluster centers
+     * @param attrisize Vector of attribute sizes
+     * @param number_cls Number of clusters
+     * @return NumericVector containing initial cluster centers
+     * @note Exported to R using Rcpp
+     */
+
+    NumericMatrix sigma(attrisize.length(), number_cls);
+
+    for  (int i = 0; i < attrisize.length(); i++) {
+        NumericVector temp = rhyper_sig(number_cls, v[i], u[i], attrisize[i]);
+        for (int j = 0; j < number_cls; j++) {
+            sigma(i, j) = temp(j);
+        }
+    } 
+
+    return sigma;
+}
+
+double calculate_b(NumericVector x_i, NumericVector c_i, NumericMatrix data, 
+                    NumericMatrix center, NumericMatrix sigma,  NumericVector attrisize, 
+                    double gamma, int num_cls, NumericVector unique_classes_without_i, 
+                    int index_i, int m){
+
+    double num = data.nrow() - 1 + gamma;
+
+    double den = 0;
+    int n_i_z = 0;
+    double Hamming = 1;
+    int k_minus = unique_classes_without_i.length();
+
+    // First summation of the denominator
     for (int z = 0; z < k_minus; z++) {
-        double prob = 0;
-        for (int j = 0; j < p; j++) {
-            prob += dhamming(x_i[j], center_matrix(z, j), sigma[z], attrisize[j], log_scale);
+        double Hamming = 1;
+
+        n_i_z = 0;
+        for (int i = 0; i < data.nrow(); i++) {
+            if (i != index_i && c_i[i] == z) {
+                n_i_z++;
+            }
         }
-        probabilities[z] = prob;
-    }
-    
-    // Calculate probabilities for new classes
-    for (int z = k_minus; z < h; z++) {
-        double prob = 0;
-        for (int j = 0; j < p; j++) {
-            prob += dhamming(x_i[j], center_matrix(z % k_minus, j), sigma[z % k_minus], attrisize[j], log_scale);
+
+        for (int j = 0; j < data.ncol(); j++) {
+            Hamming *= dhamming(x_i[j], center(z, j), sigma(z, j), attrisize[j]);
         }
-        probabilities[z] = prob * (gamma/m);
+        den += n_i_z * Hamming;
     }
-    
-    return probabilities;
+
+    // Second summation of the denominator
+    for (int z = k_minus ; z < num_cls; z++) {
+        double Hamming = 1;
+
+        for (int j = 0; j < data.ncol(); j++) {
+            Hamming *= dhamming(x_i[j], center(z, j), sigma(z, j), attrisize[j]);
+        }
+        den += (gamma/m) * Hamming;
+    }
+
+
+    return num/den;
 }
 
-int sample_class_assignment(
-    NumericVector x_i,
-    NumericVector c_i,
-    List centers,
-    NumericVector sigma,
-    NumericVector attrisize,
-    double gamma,
-    int m) {
+int sample_allocation(NumericVector x_i, NumericVector c_i, NumericMatrix data, 
+                        NumericMatrix center, NumericMatrix sigma,  NumericVector attrisize, 
+                        double gamma, int num_cls, NumericVector unique_classes_without_i, int m, int index_i){
+
+    // Find normalizing constant
+    double b = calculate_b(x_i, c_i, data, center, sigma, attrisize, gamma, num_cls, unique_classes_without_i, index_i, m);
+
+    // Calculate factor
+    double factor = 1/(data.nrow() - 1 + gamma);
+
+    // Calculate probabilities
+    NumericVector probs(num_cls);
+
+    int n_i_z = 0;
+
+    for (int k = 0; k < num_cls; k++) {
+        // F nel paper Neal
+        double Hamming = 1;
+        for (int j = 0; j < data.ncol(); j++) {
+            Hamming *= dhamming(x_i[j], center(k, j), sigma(k, j), attrisize[j]);
+        }
+
+
+        if (k < unique_classes_without_i.length()) {
+            n_i_z = 0;
+            for (int i = 0; i < data.nrow(); i++) {
+                if (i != index_i && c_i[i] == c_i[index_i]) {
+                    n_i_z++;
+                }
+            }
+
+            probs[k] = b*factor* n_i_z * Hamming ;
+        } else {
+            probs[k] = b * factor * gamma/m * Hamming;
+        }
+    }
+
+    // Create the vector from 1 to num_cls + 1
+    NumericVector cls(num_cls);
+
+    // Sample new cluster assignment using probabilities calculated before
+    return sample(cls, 1, true, probs)[0];
+
+}
+
+NumericMatrix clean_var(NumericMatrix var, NumericVector c_i, NumericVector attrisize){
     /**
-     * @brief Samples new class assignment for an observation
-     * @param x_i Observation vector
-     * @param c_i Current class assignments
-     * @param centers List of cluster centers
-     * @param sigma Vector of cluster dispersions
+     * @brief Clean the variables that are not used
+     * @param var Matrix of variables
+     * @param c_i Vector of cluster assignments
      * @param attrisize Vector of attribute sizes
-     * @param gamma Concentration parameter
-     * @param m Number of auxiliary parameters
-     * @return Integer representing new class assignment
+     * @return NumericMatrix containing cleaned variables
      * @note Exported to R using Rcpp
      */
-    
-    NumericVector probs = calculate_class_probabilities(x_i, centers, sigma, attrisize, gamma, m);
-    // Normalize probabilities
-    probs = exp(probs - max(probs));
-    probs = probs / sum(probs);
-    
-    // Sample new class
-    IntegerVector classes = seq_len(probs.length());
-    IntegerVector sampled = sample(classes, 1, true, probs);
-    return sampled[0];
+
+    int p = var.nrow();
+    int new_cls = unique_classes(c_i).length();
+
+    NumericMatrix new_var(p, new_cls);
+
+    for (int i = 0; i < p; i++) {
+        for (int j = 0; j < new_cls; j++) {
+            new_var(i, j) = var(i, c_i[j]);
+        }
+    }
+
+    return new_var;
 }
 
-List update_centers(NumericMatrix data, NumericVector sigma, NumericVector attrisize) {
+double sum_delta(NumericMatrix data, int j, int a){
+    // Summation of delta
+    double sumdelta=0;
+    for(int k=0; k<data.nrow(); k++){
+        if(data[k,j]==a) 
+        sumdelta++;
+    }
+    return sumdelta;
+}
+
+NumericMatrix update_centers(NumericMatrix data, NumericVector attrisize,NumericVector c_i, NumericMatrix sigma_prec){
     /**
-     * @brief Updates cluster centers based on current assignments
+     * @brief Update cluster centers
      * @param data Input data matrix
-     * @param sigma Vector of cluster dispersions
      * @param attrisize Vector of attribute sizes
-     * @return List of updated centers
+     * @return NumericMatrix containing updated cluster centers
      * @note Exported to R using Rcpp
      */
-    return Center_prob(data, sigma, attrisize);
+    NumericMatrix centers(attrisize.length(), unique_classes(c_i).length());
+    List probs_list;
+    
+    double num, den, sumdelta;
+
+    for(int i=0; i<attrisize.length(); i++){ // per ogni variabile
+        NumericVector probs(attrisize[i]);
+        for(int a = 0; a<attrisize[i]; a++){ // per ogni modalità
+            num = 0;
+            den = 0;
+            sumdelta = sum_delta(data, i, a);
+            num= pow((1+(attrisize[a]-1)/(exp(1/sigma_prec(a,i)))),-data.nrow())*exp((data.nrow()-sumdelta)/(sigma_prec(a,i)));
+            
+            for(int k=0; k<attrisize[i]; k++){
+                sumdelta = sum_delta(data, i, k);
+                den+=(pow((1+(attrisize[k]-1)/(exp(1/sigma_prec(k,i)))),-data.nrow()))*exp((data.nrow()-sumdelta)/(sigma_prec(k,i)));
+            }
+            probs[a] = num/den;
+        }
+        probs_list.push_back(probs);
+    }
+    return centers;
+}
+
+List update_sigma(NumericVector centers, NumericVector w, NumericVector v, NumericMatrix data, NumericVector attrisize){
+    /**
+     * @brief Update cluster dispersions
+     * @param data Input data matrix
+     * @param attrisize Vector of attribute sizes
+     * @return NumericMatrix containing updated cluster dispersions
+     * @note Exported to R using Rcpp
+     */
+    
+    double num, den, sumdelta = 0;
+    double new_v = 0, new_w = 0;
+
+    List sigmas;
+
+    for(int j = 0; j < centers.length(); ++j){
+        sumdelta = sum_delta(data, j, centers[j]);
+        // Update v and w
+        new_v = v[j] + sumdelta;
+        new_w = w[j] + data.nrow() - sumdelta;
+        
+        // Create prob vector
+        sigmas.append(rhyper_sig(1, new_v, new_w, attrisize[i]));
+    }
+
+
+    return sigmas;
 }
 
 // [[Rcpp::export]]
 List run_markov_chain(
     NumericMatrix data,
-    NumericVector initial_assignments,
-    NumericVector sigma,
     NumericVector attrisize,
     double gamma,
-    int m,
+    NumericVector v,
+    NumericVector u,
+    int m = 3,
     int iterations = 1000) {
     /**
      * @brief Main MCMC sampling function for clustering
      * @param data Input data matrix
      * @param initial_assignments Initial cluster assignments
      * @param sigma Vector of cluster dispersions
-     * @param attrisize Vector of attribute sizes
+     * @param attrisize Vector of attribute sizes len p and each component is the number of modalities for each variable
      * @param gamma Concentration parameter
      * @param m Number of auxiliary parameters
      * @param iterations Number of MCMC iterations
@@ -187,10 +331,20 @@ List run_markov_chain(
      *          assignments and centers until convergence or maximum iterations.
      */
     int n = data.nrow();
-    NumericVector c_i = clone(initial_assignments);
+
+    // Initialize cluster assignments
+    int L = 4;
+
+    // Initialize cluster assignments
+    NumericVector c_i = sample_initial_assignment(L, n);
     
     // Initialize centers using Center_prob
-    List centers = update_centers(data, sigma, attrisize);
+    NumericMatrix center = sample_centers(attrisize, L + m);
+
+    // Initialize sigma
+    NumericMatrix sigma = sample_sigma(attrisize, L + m, u, v);
+    NumericMatrix sigma_prec;
+
     
     Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
     
@@ -199,19 +353,52 @@ List run_markov_chain(
     
     // Main MCMC loop
     for (int iter = 0; iter < iterations; iter++) {
+
+        NumericVector prec_unique_classes = unique_classes(c_i);
+
         // For each observation
         for (int i = 0; i < n; i++) {
+            // take the i-th observation
             NumericVector x_i = data(i, _);
-            c_i[i] = sample_class_assignment(x_i, c_i, centers, sigma, attrisize, gamma, m);
+
+            // Remove i-th observation from cluster
+            NumericVector unique_classes_without_i = unique_classes_without_index(c_i, i);
+
+            // Check if the i-th observation is the only one in the cluster
+            if (unique_classes_without_i.length() == prec_unique_classes.length()){
+                // Re-Sample m the latent classes
+                for ( int k = L; k < L + m; k++){
+                    center(_, k) = sample_centers(attrisize, 1);
+                    sigma(_, k) = sample_sigma(attrisize, 1, u, v);
+                }
+            }
+            else{
+                // Re-Sample m-1 the latent classes 
+                for ( int k = L + 1 ; k < L + m; k++){
+                    center(_, k) = sample_centers(attrisize, 1);
+                    sigma(_, k) = sample_sigma(attrisize, 1, u, v);
+                }
+            }
+
+            // Compute the new allocation of the i-th observation
+            c_i[i] = sample_allocation(x_i, c_i, data, center, sigma, attrisize, gamma, L + m, unique_classes_without_i, m, i);
+            
         }
-        
+
+        // Clean variables from unused latent classes
+        center = clean_var(center, c_i, attrisize);
+        sigma = clean_var(sigma, c_i, attrisize);
+
         // Update centers
-        centers = update_centers(data, sigma, attrisize);
+        sigma_prec = clone(sigma);
+        centers = update_centers(data, attrisize, c_i, sigma_prec);
+        // Update sigma _ CHECK IS WRONG!!!!!!!!!!
+        sigma = update_sigma(centers, attrisize, u, v);
         
         // Store current state
         List iteration_result = List::create(
             Named("assignments") = clone(c_i),
-            Named("centers") = clone(centers)
+            Named("centers") = clone(center)
         );
         results[iter] = iteration_result;
         
@@ -223,35 +410,7 @@ List run_markov_chain(
     
     return List::create(
         Named("final_assignments") = c_i,
-        Named("final_centers") = centers,
+        Named("final_centers") = center,
         Named("all_iterations") = results
     );
-}
-
-// [[Rcpp::export]]
-List example_usage() {
-    /**
-     * @brief Example usage function demonstrating the MCMC clustering implementation
-     * @return List containing clustering results for example data
-     * @note Exported to R using Rcpp
-     * @details Creates a small example dataset with 5 observations and 2 variables,
-     *          then runs the MCMC clustering algorithm with sample parameters
-     */
-    // Create example data
-    NumericMatrix data(5, 2);
-    
-    // Fill the first column
-    data(0,0) = 1; data(1,0) = 1; data(2,0) = 2; data(3,0) = 2; data(4,0) = 3;
-    
-    // Fill the second column
-    data(0,1) = 1; data(1,1) = 1; data(2,1) = 2; data(3,1) = 2; data(4,1) = 3;
-    
-    NumericVector initial_assignments = NumericVector::create(1, 1, 2, 2, 3);
-    NumericVector sigma = NumericVector::create(0.1, 0.1, 0.1);
-    NumericVector attrisize = NumericVector::create(3, 3); // 3 possible values for each variable
-    
-    double gamma = 1.0;
-    int m = 2;
-    
-    return run_markov_chain(data, initial_assignments, sigma, attrisize, gamma, m, 10000);
 }
