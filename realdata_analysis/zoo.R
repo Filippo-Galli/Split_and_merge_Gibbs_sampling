@@ -50,6 +50,7 @@ u
 v
 
 Rcpp::sourceCpp("../code/neal_sampler.cpp")
+# SONO INVERTITI U E V????? 
 run_markov_chain(zoo, mm, 0.68, v, u, 2)
 #=========================================================================================
 # Gibbs sampler HMM
