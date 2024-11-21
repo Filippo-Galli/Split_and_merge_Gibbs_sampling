@@ -29,7 +29,7 @@ zoo[,13] = ifelse(zoo[,13]==3,2,
 
 n = nrow(zoo)
 p = ncol(zoo)
-mm = apply(zoo,2,function(x){length(table(x))})
+mm = apply(zoo, 2, function(x){length(table(x))})
 
 #=========================================================================================
 # Neal sampler
@@ -43,14 +43,14 @@ Sys.setenv("PKG_CXXFLAGS" = paste0("-I/home/filippo/R/x86_64-pc-linux-gnu-librar
 # Include full library paths and libraries
 Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 
-u<-rep(6, 16)
-u[13]<-3
-v<-rep(0.25, 16)
+u <- rep(6, 16)
+u[13] <- 3
+v <- rep(10, 16)
 u
 v
 
 Rcpp::sourceCpp("../code/neal_sampler.cpp")
-run_markov_chain(zoo, mm, 0.68, v, u)
+List result = run_markov_chain(zoo, mm, 0.68, v, u, 2)
 #=========================================================================================
 # Gibbs sampler HMM
 #=========================================================================================

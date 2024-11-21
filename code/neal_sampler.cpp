@@ -86,7 +86,7 @@ NumericVector sample_initial_assignment(double K = 4, int n = 10){
     // Sample initial cluster assignments
     NumericVector c_i(n);
     for (int i = 0; i < n; i++) {
-        c_i[i] = R::runif(0, K);
+        c_i[i] = sample(K, 1, true)[0];
     }
     return c_i;
 }
@@ -101,7 +101,7 @@ NumericVector sample_center_1_cluster(NumericVector attrisize) {
     NumericVector center(attrisize.length());
 
     for (int i = 0; i < attrisize.length(); i++) {
-        center[i] = R::runif(1, attrisize[i]);
+        center[i] = sample(attrisize[i], 1, true)[0];
     } 
 
     return center;
@@ -196,39 +196,61 @@ double calculate_b(NumericVector x_i, NumericVector c_i, NumericMatrix data,
     // used parameters
     int k_minus = unique_classes_without_i.length();
 
+    NumericVector sigma_k(attrisize.length());
+    NumericVector center_k(attrisize.length());
+
     // Compute denominator for existing clusters
     for (int z = 0; z < k_minus; z++) { // for each existing cluster
         double Hamming = 1.0;
         int n_i_z = 0;
 
+        for(int j = 0; j < attrisize.length(); j++){
+            NumericVector temp = as<NumericVector>(sigma[j]);// vettore attributo j
+            sigma_k[j] = temp[z]; // prendo cluster k del attributo j
+            temp = as<NumericVector>(center[j]);
+            center_k[j] = temp[z];
+        }
+
         // Count instances in this cluster excluding the current point
         for (int i = 0; i < data.nrow(); i++) {
+            //std::cout << "[DEBUG] - " << 2.3 << " i: " << i << " c_i[i]: " << c_i[i]  << " z: " << z<< std::endl;
             if (i != index_i && c_i[i] == z) {
                 n_i_z++;
             }
         }
 
+        //std::cout << "[DEBUG] - " << 2.3 << " n_i_z: " << n_i_z << std::endl;
+
         // Compute Hamming distance product for this cluster
         for (int j = 0; j < data.ncol(); j++) {
-            NumericVector cluster_center = as<NumericVector>(center[j]);
-            NumericVector cluster_sigma = as<NumericVector>(sigma[j]);
-            Hamming *= dhamming(x_i[j], cluster_center[z], cluster_sigma[z], attrisize[j]);
+            Hamming *= dhamming(x_i[j], center_k[j], sigma_k[j], attrisize[j]);
         }
+        //std::cout << "[DEBUG] - " << 2.3 << " Hamming: " << Hamming << std::endl;
         den += n_i_z * Hamming;
     }
+
+    //std::cout << "[DEBUG] - " << 2.2 << " den-1: " << den << std::endl;
 
     // Compute denominator for new/auxiliary clusters
     for (int z = k_minus; z < num_cls; z++) {
         double Hamming = 1.0;
 
+        for(int j = 0; j < attrisize.length(); j++){
+            NumericVector temp = as<NumericVector>(sigma[j]);// vettore attributo j
+            sigma_k[j] = temp[z]; // prendo cluster k del attributo j
+            temp = as<NumericVector>(center[j]);
+            center_k[j] = temp[z];
+        }
+
         // Compute Hamming distance product for this auxiliary cluster
         for (int j = 0; j < data.ncol(); j++) {
-            NumericVector cluster_center = as<NumericVector>(center[j]);
-            NumericVector cluster_sigma = as<NumericVector>(sigma[j]);
-            Hamming *= dhamming(x_i[j], cluster_center[z], cluster_sigma[z], attrisize[j]);
+            Hamming *= dhamming(x_i[j], center_k[j], sigma_k[j], attrisize[j]);
         }
         den += (gamma/m) * Hamming;
     }
+
+    //std::cout << "[DEBUG] - " << 2.2 << " num: " << num << std::endl;
+    //std::cout << "[DEBUG] - " << 2.2 << " den-2: " << den << std::endl;
 
     return num / den;
 }
@@ -255,6 +277,8 @@ int sample_allocation(int index_i, NumericVector x_i, NumericVector c_i, Numeric
     // Find normalizing constant
     double b = calculate_b(x_i, c_i, data, center, sigma, attrisize, gamma, num_cls, unique_classes_without_i, index_i, m);
 
+    std::cout << "[DEBUG] - " << 2.1 << " b: " << b << std::endl;
+
     // Calculate factor
     double factor = 1/(data.nrow() - 1 + gamma);
 
@@ -268,18 +292,25 @@ int sample_allocation(int index_i, NumericVector x_i, NumericVector c_i, Numeric
     for (int k = 0; k < num_cls; k++) {
         // Density calculation, in Neal paper is the F function
         double Hamming = 1;
-        NumericVector sigma_k = as<NumericVector>(sigma[k]);
-        NumericVector center_k = as<NumericVector>(center[k]);
+        NumericVector sigma_k(attrisize.length());
+        NumericVector center_k(attrisize.length());
 
-        Rcpp::Rcout << "[DEBUG] - " << 2.1 << " inside sample_allocation sigma_k: " << sigma_k << std::endl;
-        Rcpp::Rcout << "[DEBUG] - " << 2.1 << " center_k: " << center_k << std::endl;
+        for(int j = 0; j < attrisize.length(); j++){
+            NumericVector temp = as<NumericVector>(sigma[j]);// vettore attributo j
+            sigma_k[j] = temp[k]; // prendo cluster k del attributo j
+            temp = as<NumericVector>(center[j]);
+            center_k[j] = temp[k];
+        }
+
+        //Rcpp::Rcout << "[DEBUG] - " << 2.1 << " inside sample_allocation sigma_k: " << sigma_k << std::endl;
+        //Rcpp::Rcout << "[DEBUG] - " << 2.1 << " center_k: " << center_k << std::endl;
+        //Rcpp::Rcout << "[DEBUG] - " << 2.1 << " x_i: \t" << x_i << std::endl;
 
         for (int j = 0; j < data.ncol(); j++) {
-            Rcpp::Rcout << "[DEBUG] - " << 2.1 << " x_i[j]: " << x_i[j]  << " center_k[j]:" << center_k[j] << std::endl;
             Hamming *= dhamming(x_i[j], center_k[j], sigma_k[j], attrisize[j]);
         }
 
-        std::cout << "[DEBUG] - " << 2.1 << " Hamming: " << Hamming << std::endl;
+        //std::cout << "[DEBUG] - " << 2.1 << " Hamming: " << Hamming << std::endl;
 
         // probability calculation for existing clusters
         if (k < unique_classes_without_i.length()) {
@@ -291,7 +322,7 @@ int sample_allocation(int index_i, NumericVector x_i, NumericVector c_i, Numeric
                 }
             }
             // Calculate probability
-            probs[k] = b*factor* n_i_z * Hamming ;
+            probs[k] = b * factor * n_i_z * Hamming ;
         }
         // probability calculation for latent clusters 
         else {
@@ -324,7 +355,6 @@ List clean_var(List var, NumericVector c_i, NumericVector attrisize){
     NumericVector existig_cls = unique_classes(c_i);
 
     List new_var(p);
-    std::cout << "[DEBUG] - " << 2.1 << std::endl;
 
     for (int i = 0; i < p; i++) { // for each attribute
         NumericVector cls(existig_cls.length());
@@ -346,9 +376,12 @@ double sum_delta(NumericMatrix data, int j, int a) {
      * @param a Attribute value
      * @return Sum of occurrences
      */
+
+    std::cout << "\n[DEBUG] - " << 4 << " Gang in sum_delta vediamo se i parametri passati sono giusti:";
+    std::cout << "\n[DEBUG] - " << 4.1 << " j: " << j << " a: " << a << std::endl;
     double sumdelta = 0;
-    for (int k = 0; k < data.nrow(); k++) {
-        if (data[k,j] == a) 
+    for (int k = 0; k < data.nrow(); k++) { // for each observation
+        if (data[k,j] == a) // if the attribute value is equal to the modality a a
             sumdelta++;
     }
     return sumdelta;
@@ -367,33 +400,37 @@ List update_centers(NumericMatrix data, NumericVector attrisize,
     List prob_centers(attrisize.length());
     NumericVector clusters = unique_classes(c_i);
     
+    std::cout << "\n[DEBUG] - " << 3 << " Siamo nel Gucci" << std::endl;
+
     /*
     * Calculation of probabilities for each attribute and modality to be chosen
     */
     for (int i = 0; i < attrisize.length(); i++) { // for each attribute
         NumericVector probs(attrisize[i]);
         NumericVector sigma_attr = as<NumericVector>(sigma_prec[i]);
-
+        double den=0;
         for (int a = 0; a < attrisize[i]; a++) { // for each modality
-            double num, den, sumdelta;
+            double num = 0, sumdelta = 0;
             sumdelta = sum_delta(data, i, a);
+            std::cout << "\n[DEBUG] - " << 3.1 << " sumdelta: " << sumdelta << std::endl;
             
             // Calculate numerator of the full conditional
             num = pow((1 + (attrisize[a] - 1) / (exp(1 / sigma_attr[a]))), -data.nrow()) * 
                   exp((data.nrow() - sumdelta) / (sigma_attr[a]));
+
+            std::cout << "[DEBUG] - " << 3.2 << " num: " << num << std::endl;
             
-            // Calculate denominator of the full conditional
-            den = 0;
-            for (int k = 0; k < attrisize[i]; k++) {
-                sumdelta = sum_delta(data, i, k);
-                den += (pow((1 + (attrisize[k] - 1) / (exp(1 / sigma_attr[k]))), -data.nrow())) * 
-                       exp((data.nrow() - sumdelta) / (sigma_attr[k]));
-            }
+            probs[a] = num;
+            den+=num;
+        }     
             
-            // Calculate probability of being choosen
-            probs[a] = num / den;
-        }
-        
+        std::cout << "\n[DEBUG] - " << 3.3 << " den: " << den << std::endl;
+
+        for(int p = 0; p < probs.length(); p++){
+            probs[p] = probs[p]/den;
+            std::cout << "[DEBUG] - " << 3.4 << " prob["<<p<<"]: " << probs[p] << std::endl;
+        }     
+                  
         // Store probabilities for this attribute
         prob_centers[i] = probs;
     }
@@ -450,7 +487,7 @@ List update_sigma(List centers, NumericVector w, NumericVector v,
 
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
-                    NumericVector v, NumericVector u, int m = 5, int iterations = 1000) {
+                    NumericVector v, NumericVector u, int verbose = 0, int m = 5, int iterations = 1000) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -467,17 +504,46 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
     Rcpp::Rcout << "[DEBUG] - " << 1 << " attrisize: "<< attrisize << std::endl;
 
     // First cluster assignments
-    int L = 10;
+    int L = 4;
 
     // Initialize cluster assignments
     NumericVector c_i = sample_initial_assignment(L, n);
+
+    if(verbose == 1){
+        std::cout << "[DEBUG] - " << " c_i[i]: " << std::endl;
+        for (int i = 0; i < n; i++) {  
+            std::cout << c_i[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+
     
     // Initialize centers using Center_prob
     List center = sample_centers(attrisize, L + m);
 
+    if(verbose == 2){
+        std::cout << "[DEBUG] - " << " center[i]: " << std::endl;
+        for (int i = 0; i < attrisize.length(); i++) {  
+            NumericVector temp = as<NumericVector>(center[i]);
+            for(int j = 0; j < temp.length(); j++){
+                std::cout << temp[j] << " ";
+            }
+        }
+    }
+
     // Initialize sigma
     List sigma = sample_sigmas(attrisize, L + m, u, v);
     List sigma_prec;
+
+    if(verbose == 3){
+        std::cout << "[DEBUG] - " << " sigma[i]: " << std::endl;
+        for (int i = 0; i < attrisize.length(); i++) {  
+            NumericVector temp = as<NumericVector>(sigma[i]);
+            for(int j = 0; j < temp.length(); j++){
+                std::cout << temp[j] << " ";
+            }
+        }
+    }
     
     Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
     
@@ -516,13 +582,10 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
                 sigma[k] = new_sigma;
                 
             }
-
-            std::cout << "[DEBUG] - " << 2 << " before sample allocation"<< std::endl;
-            
             // Compute the new allocation of the i-th observation
-            c_i[i] = sample_allocation(i, x_i, c_i, data, center, sigma, attrisize, gamma, L + m, unique_classes_without_i, m);
-            std::cout << "[DEBUG] - " << 3 << std::endl;
+            c_i[i] = sample_allocation(i, x_i, c_i, data, center, sigma, attrisize, gamma, L + m, unique_classes_without_i, m);  
         }
+        std::cout << "[DEBUG] - FInished sample for all the i " << std::endl;
 
         // Clean variables from unused latent classes
         center = clean_var(center, c_i, attrisize);
@@ -548,8 +611,9 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
     Rcpp::Rcout << "Sampling completed!" << std::endl;
     
     return List::create(
-        Named("final_assignments") = c_i,
-        Named("final_centers") = center,
-        Named("all_iterations") = results
+       Named("final_assignments") = c_i,
+       Named("final_centers") = center,
+       Named("sigma") = sigma,
+       Named("all_iterations") = results
     );
 }
