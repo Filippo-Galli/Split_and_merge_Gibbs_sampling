@@ -46,11 +46,12 @@ Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 u <- rep(6, 16)
 u[13] <- 3
 v <- rep(10, 16)
+v[13]<-0.5
 u
 v
 
 Rcpp::sourceCpp("../code/neal_sampler.cpp")
-# SONO INVERTITI U E V????? 
+ 
 run_markov_chain(zoo, mm, 0.68, v, u, 2)
 #=========================================================================================
 # Gibbs sampler HMM
