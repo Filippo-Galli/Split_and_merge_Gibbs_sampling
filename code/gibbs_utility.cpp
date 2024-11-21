@@ -96,7 +96,6 @@ NumericVector Samp_Center(List attriList, List center_prob, int p){
 
 // [[Rcpp::export]]
 double dhamming (int x, int c, double s, int attrisize, const bool log_scale=false){
-  
   double out;
   double num;
   double den;
@@ -107,6 +106,7 @@ double dhamming (int x, int c, double s, int attrisize, const bool log_scale=fal
     out = num-den;
   }else{
     num = exp(-(x!=c)/s);
+
     den = 1+((attrisize-1)/exp(1/s));
     out = num/den;
   }

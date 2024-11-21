@@ -123,7 +123,7 @@ List sample_centers(NumericVector attrisize, int number_cls) {
     for (int i = 0; i < attrisize.length(); i++) {
         NumericVector attr_centers(number_cls);
         for (int i = 0; i < number_cls; i++) {
-            attr_centers[i] = R::runif(1, attrisize[i]);
+            attr_centers[i] = sample(attrisize[i], 1, true)[0];
         }
         centers[i] = attr_centers;
     }   
@@ -264,12 +264,22 @@ int sample_allocation(int index_i, NumericVector x_i, NumericVector c_i, Numeric
     // number of variable in cluster z without i
     int n_i_z = 0;
 
+
     for (int k = 0; k < num_cls; k++) {
         // Density calculation, in Neal paper is the F function
         double Hamming = 1;
+        NumericVector sigma_k = as<NumericVector>(sigma[k]);
+        NumericVector center_k = as<NumericVector>(center[k]);
+
+        Rcpp::Rcout << "[DEBUG] - " << 2.1 << " inside sample_allocation sigma_k: " << sigma_k << std::endl;
+        Rcpp::Rcout << "[DEBUG] - " << 2.1 << " center_k: " << center_k << std::endl;
+
         for (int j = 0; j < data.ncol(); j++) {
-            Hamming *= dhamming(x_i[j], center(k, j), sigma(k, j), attrisize[j]);
+            Rcpp::Rcout << "[DEBUG] - " << 2.1 << " x_i[j]: " << x_i[j]  << " center_k[j]:" << center_k[j] << std::endl;
+            Hamming *= dhamming(x_i[j], center_k[j], sigma_k[j], attrisize[j]);
         }
+
+        std::cout << "[DEBUG] - " << 2.1 << " Hamming: " << Hamming << std::endl;
 
         // probability calculation for existing clusters
         if (k < unique_classes_without_i.length()) {
@@ -292,6 +302,8 @@ int sample_allocation(int index_i, NumericVector x_i, NumericVector c_i, Numeric
     // Create the vector from 0 to num_cls 
     NumericVector cls(num_cls);
 
+    std::cout << "[DEBUG] - " << 2.1 << " probs: " << probs<< std::endl;
+
     // Sample new cluster assignment using probabilities calculated before
     return sample(cls, 1, true, probs)[0];
 
@@ -312,6 +324,7 @@ List clean_var(List var, NumericVector c_i, NumericVector attrisize){
     NumericVector existig_cls = unique_classes(c_i);
 
     List new_var(p);
+    std::cout << "[DEBUG] - " << 2.1 << std::endl;
 
     for (int i = 0; i < p; i++) { // for each attribute
         NumericVector cls(existig_cls.length());
@@ -437,7 +450,7 @@ List update_sigma(List centers, NumericVector w, NumericVector v,
 
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
-                    NumericVector v, NumericVector u, int m = 3, int iterations = 1000) {
+                    NumericVector v, NumericVector u, int m = 5, int iterations = 1000) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -445,14 +458,16 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
      * @param gamma Concentration parameter
      * @param v Parameter for sigma update
      * @param u Parameter for sigma update
-     * @param m Number of latent classes (default: 3)
+     * @param m Number of latent classes (default: 5)
      * @param iterations Number of MCMC iterations (default: 1000)
      * @return List containing final clustering results
     */
     int n = data.nrow();
 
+    Rcpp::Rcout << "[DEBUG] - " << 1 << " attrisize: "<< attrisize << std::endl;
+
     // First cluster assignments
-    int L = 4;
+    int L = 10;
 
     // Initialize cluster assignments
     NumericVector c_i = sample_initial_assignment(L, n);
@@ -463,7 +478,6 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
     // Initialize sigma
     List sigma = sample_sigmas(attrisize, L + m, u, v);
     List sigma_prec;
-
     
     Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
     
@@ -480,31 +494,34 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
             // take the i-th observation
             NumericVector x_i = data(i, _);
 
+            printf("Iteration: %d, Observation: %d\n", iter, i);
+
             // Remove i-th observation from cluster
             NumericVector unique_classes_without_i = unique_classes_without_index(c_i, i);
 
             // Check if the i-th observation is the only one in the cluster
             int start_k = unique_classes_without_i.length() == prec_unique_classes.length() ? L : L + 1;
+
             // Re-Sample m the latent classes
             for (int k = start_k; k < L + m; k++){
                 // sample a new center
                 NumericVector new_center = sample_center_1_cluster(attrisize);
+                
                 // update the center list with the new center
-                for (int j = 0; j < attrisize.length(); j++){
-                    center(j, k) = new_center[j];
-                }
-
+                center[k] = new_center;
+                
                 // sample a new sigma
                 NumericVector new_sigma = sample_sigma_1_cluster(attrisize, u, v);
                 // update the sigma list with the new sigma
-                for (int j = 0; j < attrisize.length(); j++){
-                    sigma(j, k) = new_sigma[j];
-                }
+                sigma[k] = new_sigma;
+                
             }
+
+            std::cout << "[DEBUG] - " << 2 << " before sample allocation"<< std::endl;
             
             // Compute the new allocation of the i-th observation
             c_i[i] = sample_allocation(i, x_i, c_i, data, center, sigma, attrisize, gamma, L + m, unique_classes_without_i, m);
-            
+            std::cout << "[DEBUG] - " << 3 << std::endl;
         }
 
         // Clean variables from unused latent classes

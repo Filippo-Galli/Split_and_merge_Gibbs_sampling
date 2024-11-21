@@ -43,8 +43,14 @@ Sys.setenv("PKG_CXXFLAGS" = paste0("-I/home/filippo/R/x86_64-pc-linux-gnu-librar
 # Include full library paths and libraries
 Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 
-Rcpp::sourceCpp("../code/neal_sampler.cpp")
+u<-rep(6, 16)
+u[13]<-3
+v<-rep(0.25, 16)
+u
+v
 
+Rcpp::sourceCpp("../code/neal_sampler.cpp")
+run_markov_chain(zoo, mm, 0.68, v, u)
 #=========================================================================================
 # Gibbs sampler HMM
 #=========================================================================================
