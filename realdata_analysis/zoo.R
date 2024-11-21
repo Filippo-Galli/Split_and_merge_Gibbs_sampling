@@ -3,10 +3,6 @@ library(AntMAN)
 library(mcclust.ext)
 source("../code/complement_functions.R")
 
-Rcpp::sourceCpp("../code/neal_sampler.cpp")
-example = example_usage()
-example$final_assignments
-
 #=========================================================================================
 # Loading data
 #=========================================================================================
@@ -35,6 +31,19 @@ n = nrow(zoo)
 p = ncol(zoo)
 mm = apply(zoo,2,function(x){length(table(x))})
 
+#=========================================================================================
+# Neal sampler
+#=========================================================================================
+
+## Obbligatorie per Filippo perché RcppGSL non trova le librerie GSL e nemmeno RcppGSL.h
+# First, use the explicit include path from RcppGSL
+Sys.setenv("PKG_CXXFLAGS" = paste0("-I/home/filippo/R/x86_64-pc-linux-gnu-library/4.4/RcppGSL/include", 
+                                   " -I/usr/local/include"))
+
+# Include full library paths and libraries
+Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
+
+Rcpp::sourceCpp("../code/neal_sampler.cpp")
 
 #=========================================================================================
 # Gibbs sampler HMM
