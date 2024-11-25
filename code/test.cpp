@@ -89,11 +89,11 @@ NumericVector sample_initial_assignment(double K = 4, int n = 10){
     return c_i;
 }
 
-int count_cluster_members(const NumericVector& c_i, int exclude_index) {
+int count_cluster_members(const NumericVector& c_i, int exclude_index, int cls) {
    
     int n_i_z = 0;
     for (int i = 0; i < c_i.length(); i++) {
-        if (i != exclude_index && c_i[i] == c_i[exclude_index]) {
+        if (i != exclude_index && c_i[i] == cls) {
             n_i_z++;
         }
     }
@@ -214,7 +214,8 @@ int sample_allocation(const int index_i, const NumericVector & x_i, const Numeri
         // probability calculation for existing clusters
         if (k < unique_classes_without_i.length()) {
             // Count instances in the z cluster excluding the current point i
-            n_i_z = count_cluster_members(c_i, index_i);
+            n_i_z = count_cluster_members(c_i, index_i, unique_classes_without_i[k]);
+            //std::cout << "[DEBUG] - n_i_z " << index_i << " : " << n_i_z << std::endl;
             // Calculate probability
             probs[k] = n_i_z * std::exp(Hamming) ;
         }
@@ -225,15 +226,16 @@ int sample_allocation(const int index_i, const NumericVector & x_i, const Numeri
     }
 
 
+
     // Create the vector from 0 to num_cls 
     NumericVector cls(num_cls);
     for (int i = 0; i < num_cls; ++i) {
         cls[i] = i;
     }
 
-    double b = 1/(sum(probs));
-    probs = probs * b;
-    if(sum(probs) > 1.1){
+    probs = probs / sum(probs);
+    //std::cout << "[DEBUG] - probs idx " << index_i << " : " << probs << std::endl;
+    if(sum(probs) > 1 + 1e-9){
         std::cout << "[DEBUG] - probability of cluster assignment > 1 - idx" << index_i << " : " << probs << std::endl;
     }
     
@@ -338,30 +340,14 @@ void update_centers(List & centers,const NumericMatrix & data, const NumericVect
     // for each cluster
     for (int i = 0; i < num_cls; i++) {         
         // for each cluster
-        prob_centers_attribute = as<List>(prob_centers[i]);
+        prob_centers_cluster = as<List>(prob_centers[i]);
 
         for (int j = 0; j < attrisize.length(); j++) { 
             //std::cout << std::endl<<"[DEBUG] - Cluster " << i <<" attribute " << j << std::endl;
             int attrisize_j = attrisize[j];
             
-            NumericVector prob_centers_attribute_j = as<NumericVector>(prob_centers_attribute[j]);
-
-            if(sum(prob_centers_attribute_j) > 1.1){
-                std::cout << "[DEBUG] - probability of center > 1 - attribute " << j << " : " << prob_centers_attribute_j << std::endl;
-            }
-            
-            if(std::accumulate(std::begin(prob_centers_attribute_j), std::end(prob_centers_attribute_j), 1.0, std::multiplies<double>()) < 0 ){
-                std::cout << "[DEBUG] - Negative probability of center < 0  - attribute" << j << " : " << prob_centers_attribute_j << std::endl;
-            }
-            
-            /*
-            // To print the probabilities
-            for(int k = 0; k < attrisize_j; k++){
-                std::cout << "Count: " << std::count(data(_,i).begin(),data(_,i).end(), k + 1) << " Prob: "<<  prob_centers_attribute_j[k] << std::endl;
-            }
-            */
-            
-            
+            NumericVector prob_centers_attribute_j = as<NumericVector>(prob_centers_cluster[j]);
+            //std::cout << std::endl << "[DEBUG] - prob_centers_attribute_j: " << prob_centers_attribute_j << std::endl;
             attr_centers[j] = sample(attrisize_j, 1, true, prob_centers_attribute_j)[0];
             //std::cout << std::endl << "[DEBUG] - center: " << attr_centers[j] << std::endl;
         }
@@ -439,7 +425,7 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
 
     if(verbose == 1){
         std::cout << "\n[DEBUG] - " << " center[i]: " << std::endl;
-        for (int i = 0; i < L + m; i++) {  
+        for (int i = 0; i < L; i++) {  
             std::cout << "Center of cluster " << i << " :"<< std::endl << "\t";
             NumericVector temp = as<NumericVector>(center[i]);
             for(int j = 0; j < attrisize.length(); j++){
@@ -455,7 +441,7 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
 
     if(verbose == 1){
         std::cout << "\n[DEBUG] - " << " sigma[i]: " << std::endl;
-        for (int i = 0; i < L + m; i++) {  
+        for (int i = 0; i < L; i++) {  
             std::cout << "Sigma of cluster " << i << " :"<< std::endl << "\t";
             NumericVector temp = as<NumericVector>(sigma[i]);
             for(int j = 0; j < attrisize.length(); j++){
@@ -499,14 +485,6 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
             if(verbose == 2)
                 std::cout << "[DEBUG] - new cluster assignment - "<< index_i << " : " << c_i[index_i] << std::endl;
         } 
-
-        /*
-        std::cout << std::endl <<"[DEBUG] - Iteration " << iter + 1 << " of " << iterations << std::endl;
-        std::cout << "[DEBUG] - c_i: " << std::endl;
-        for(int i = 0; i < c_i.length(); i++){
-            std::cout << c_i[i] << " ";
-        }
-        */
 
         // Clean variables
         clean_var(center, sigma, c_i, attrisize);

@@ -45,14 +45,17 @@ Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 
 u <- rep(6, 16)
 u[13] <- 3
-v <- rep(10, 16)
+v <- rep(0.25, 16)
 v[13]<-0.5
 u
 v
 
-Rcpp::sourceCpp("../code/neal_sampler.cpp")
- 
-run_markov_chain(zoo, mm, 0.68, v, u, 2)
+Rcpp::sourceCpp("../code/test.cpp")
+
+
+run_markov_chain(zoo, mm, 0.68, u, v, 1, 3, 10000)
+
+
 #=========================================================================================
 # Gibbs sampler HMM
 #=========================================================================================
