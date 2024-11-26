@@ -274,7 +274,7 @@ void clean_var(List& center, List& sigma, NumericVector& c_i, NumericVector& att
     sigma = new_sigma;
 }
 
-void update_centers(List & centers,const NumericMatrix & data, const NumericVector & attrisize, 
+void update_centers(List & centers, const NumericMatrix & data, const NumericVector & attrisize, 
                     const NumericVector & c_i, const List & sigma_prec) {
     /**
      * @brief Update cluster centers
@@ -334,7 +334,7 @@ void update_centers(List & centers,const NumericMatrix & data, const NumericVect
      * Sample new cluster centers using the probabilities calculated before
      */
     NumericVector attr_centers(attrisize.length());
-    List prob_centers_attribute;
+    List prob_centers_cluster;
     
     
     // for each cluster
@@ -351,7 +351,20 @@ void update_centers(List & centers,const NumericMatrix & data, const NumericVect
             attr_centers[j] = sample(attrisize_j, 1, true, prob_centers_attribute_j)[0];
             //std::cout << std::endl << "[DEBUG] - center: " << attr_centers[j] << std::endl;
         }
-        centers[i] = attr_centers;
+
+        // hard copy to avoid problems with pointers
+        centers[i] = clone(attr_centers);
+        /*
+        std::cout << std::endl << "[DEBUG] - " << " Center of cluster " << i << " :"<< std::endl << "\t";
+        for(int j = 0; j < attrisize.length(); j++){
+            std::cout << attr_centers[j] << " ";
+        }
+        std::cout << std::endl << "\t";
+        NumericVector temp = as<NumericVector>(centers[i]);
+        for(int j = 0; j < attrisize.length(); j++){
+            std::cout << temp[j] << " ";
+        }
+        */
     }
 }
 
@@ -370,8 +383,6 @@ void update_sigma(List & sigma, const List & centers, const NumericMatrix & data
      */
     int num_cls = sigma.length();
 
-    List new_sigma(num_cls);
-
     for (int c = 0; c < num_cls; c++) { // for each cluster
         NumericVector sigmas_cluster = as<NumericVector>(sigma[c]);
         NumericVector centers_cluster = as<NumericVector>(centers[c]);
@@ -383,10 +394,8 @@ void update_sigma(List & sigma, const List & centers, const NumericMatrix & data
             double new_v = v[i] + sumdelta;
             new_sigma_cluster[i] = rhyper_sig(1, new_v, new_w, attrisize[i])[0];
         }
-        new_sigma[c] = new_sigma_cluster;
+        sigma[c] = clone(new_sigma_cluster);
     }
-
-    sigma = new_sigma;
 }
 
 // [[Rcpp::export]]
@@ -492,7 +501,7 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
         // Update centers and sigmas
         update_centers(center, data, attrisize, c_i, sigma);
         update_sigma(sigma, center, data, attrisize, c_i, v, w);
-        update_centers(center, data, attrisize, c_i, sigma);
+        //update_centers(center, data, attrisize, c_i, sigma);
 
         if(verbose == 2){
             std::cout << "\n[DEBUG] - " << " center[i]: " << std::endl;
