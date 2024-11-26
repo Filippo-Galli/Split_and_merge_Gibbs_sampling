@@ -9,6 +9,7 @@
 #include <set>
 #include <random>
 #include <algorithm>
+#include <chrono>
 #include <gibbs_utility.cpp>
 #include <RcppGSL.h>  // Add this explicit RcppGSL include
 #include <gsl/gsl_sf_hyperg.h>
@@ -228,18 +229,19 @@ List sample_sigmas(const int number_cls, const aux_data & const_data) {
     return sigma;
 }
 
-int sample_allocation(const int index_i, const NumericVector & x_i, const aux_data & constant_data, 
-                        const internal_state & state,  const IntegerVector & unique_classes_without_i, const int m){
+int sample_allocation(const int index_i, const aux_data & constant_data, 
+                        const internal_state & state, const int m){
     /**
      * @brief Sample new cluster assignment for a single data point
      * @param index_i Index of the data point
-     * @param x_i Data point vector
      * @param constant_data Auxiliary data for the MCMC algorithm
      * @param state Internal state of the MCMC algorithm
-     * @param unique_classes_without_i Unique classes excluding the current data point
      * @param m Number of latent classes
      * @return New cluster assignment for the data point
      */
+
+    NumericVector x_i = constant_data.data(index_i, _);
+    IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
 
     // Calculate probabilities
     NumericVector probs(state.total_cls);
@@ -409,7 +411,7 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
 
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
-                    NumericVector v, NumericVector w, int verbose = 0, int m = 5, int iterations = 1000) {
+                    NumericVector v, NumericVector w, int verbose = 0, int m = 5, int iterations = 1000, int L = 1) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -422,12 +424,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
      * @return List containing final clustering results
     */
 
-    // First cluster assignments
-    int L = 4;
-
     aux_data const_data = {data, data.nrow(), attrisize, gamma, v, w};
     internal_state state = {IntegerVector(), List(), List(), L};
-
 
     // Initialize cluster assignments
     state.c_i = sample_initial_assignment(state.total_cls, const_data.n);
@@ -441,7 +439,13 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     if(verbose == 1){
         print_internal_state(state);
     }
-    
+
+    List results = List::create(Named("total_cls") = List(iterations),
+                                Named("c_i") = List(iterations),
+                                Named("centers") = List(iterations),
+                                Named("sigmas") = List(iterations));
+
+    auto start_time = std::chrono::high_resolution_clock::now();
     Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
     
     for (int iter = 0; iter < iterations; iter++) {
@@ -457,12 +461,9 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         // update total number of clusters
         state.total_cls = state.center.length();
 
+        // Sample new cluster assignments
         for (int index_i = 0; index_i < const_data.n; index_i++) {
-            NumericVector x_i = const_data.data(index_i, _);
-            IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
-            IntegerVector unique_classes_vec = unique_classes(state.c_i);
-
-            state.c_i[index_i] = sample_allocation(index_i, x_i, const_data, state, unique_classes_without_i, m);
+            state.c_i[index_i] = sample_allocation(index_i, const_data, state, m);
 
             if(verbose == 2)
                 std::cout << "[DEBUG] - new cluster assignment - "<< index_i << " : " << state.c_i[index_i] << std::endl;
@@ -483,13 +484,17 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         // Update progress bar
         if(verbose == 0)
             print_progress_bar(iter + 1, iterations);
+
+        // Save results
+        as<List>(results["total_cls"])[iter] = state.total_cls;
+        as<List>(results["c_i"])[iter] = clone(state.c_i);
+        as<List>(results["centers"])[iter] = clone(state.center);
+        as<List>(results["sigmas"])[iter] = clone(state.sigma);
     }
     
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
+    Rcpp::Rcout << std::endl << "Markov Chain sampling completed in: "<< duration.count() << " s"<< std::endl;
 
-    Rcpp::Rcout << std::endl << "Markov Chain sampling completed." << std::endl;
-    return List::create(
-       Named("final_assignments") = state.c_i,
-       Named("final_centers") = state.center,
-       Named("sigma") = state.sigma
-    );
+    return results;
 }

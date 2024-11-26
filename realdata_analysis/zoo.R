@@ -1,6 +1,7 @@
 setwd("~/Documents/Split_and_merge_Gibbs_sampling/realdata_analysis")
 library(AntMAN)
 library(mcclust.ext)
+library(ggplot2)
 source("../code/complement_functions.R")
 
 #=========================================================================================
@@ -52,15 +53,77 @@ v
 
 Rcpp::sourceCpp("../code/test.cpp")
 
-results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, 1, 5000)
+L_plurale <- c(2, 7, 14)
+iterations <- 10000
+m <- 3
+for(l in L_plurale){
+  results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, m, iterations, l)
 
-# Confusion matrix
-ourGT <- groundTruth - 1
-table(results$final_assignments, ourGT)
+  ### First plot - Posterior distribution of the number of clusters
+  # Calculation
+  post_total_cls = table(unlist(results$total_cls) + 1)/length(unlist(results$total_cls))
+  title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
+  df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
+                   rel_freq = as.numeric(post_total_cls))
+  # Create plot
+  p <- ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
+    geom_col() + 
+    labs(
+      x = "Cluster Found",
+      y = "Relative Frequency",
+      title = title
+    ) +
+    theme_minimal() +
+    scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
+  # Save plot
+  filename <- paste("post_total_cls_", l, ".png", sep = "")
+  ggsave(filename, plot = p)
 
-# Accuracy
-acc <- sum(diag(table(results$final_assignments, ourGT))) / n
-print(paste("Accuracy: ", acc))
+  ### Second plot - Evolution of the number of clusters
+  # Calculation
+  df <- data.frame(iteration = 1:iterations,
+                   total_cls = unlist(results$total_cls) + 1)
+  # Create plot
+  p <- ggplot(data = df, aes(x = iteration, y = total_cls)) + 
+    geom_line() + 
+    labs(
+      x = "Iteration",
+      y = "Number of Clusters",
+      title = "Evolution of the number of clusters"
+    ) +
+    theme_minimal()
+
+}
+
+iterations <- 20000
+results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, m, iterations, 7)
+df <- data.frame(iteration = 1:iterations,
+                  total_cls = unlist(results$total_cls) + 1)
+
+ggplot(data = df, aes(x = iteration, y = total_cls)) + 
+  geom_line() + 
+  labs(
+    x = "Iteration",
+    y = "Number of Clusters",
+    title = "Evolution of the number of clusters"
+  ) +
+  theme_minimal()
+
+### Posterior similarity matrix - NON VA
+# Create matrix from c_i 
+C <- matrix(NA, nrow = iterations, ncol = nrow(zoo))
+
+for(i in 1:iterations){
+  C[i, ] <- unlist(results$c_i[i]) + 1
+}
+
+psm = comp.psm(C)
+## estimated clustering
+VI = minVI(psm)
+table(VI$cl) 
+arandi(VI$cl, groundTruth)
+myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
+
 
 #=========================================================================================
 # Gibbs sampler HMM
