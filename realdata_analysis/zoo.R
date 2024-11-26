@@ -54,13 +54,13 @@ Rcpp::sourceCpp("../code/test.cpp")
 
 results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, 1, 5000)
 
-# Compare the results with the ground truth
-#results$final_assignments
-#groundTruth
-
-# Accuracy
+# Confusion matrix
 ourGT <- groundTruth - 1
 table(results$final_assignments, ourGT)
+
+# Accuracy
+acc <- sum(diag(table(results$final_assignments, ourGT))) / n
+print(paste("Accuracy: ", acc))
 
 #=========================================================================================
 # Gibbs sampler HMM
