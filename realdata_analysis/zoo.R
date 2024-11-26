@@ -52,8 +52,15 @@ v
 
 Rcpp::sourceCpp("../code/test.cpp")
 
-run_markov_chain(zoo, mm, 0.68, u, v, 1, 3, 100)
+results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, 1, 5000)
 
+# Compare the results with the ground truth
+#results$final_assignments
+#groundTruth
+
+# Accuracy
+ourGT <- groundTruth - 1
+table(results$final_assignments, ourGT)
 
 #=========================================================================================
 # Gibbs sampler HMM

@@ -16,6 +16,51 @@
 #include <Rinternals.h>
 using namespace Rcpp;
 
+struct internal_state {
+    /**
+     * @brief Internal state of the MCMC algorithm
+     * @details This struct contains the internal state of the MCMC algorithm
+     *          including the current cluster assignments, cluster centers, and cluster dispersions
+     */
+    IntegerVector c_i;
+    List center;
+    List sigma;
+    int total_cls = 0;
+};
+
+struct aux_data{
+    /**
+     * @brief Auxiliary data for the MCMC algorithm
+     * @details This struct contains auxiliary data for the MCMC algorithm
+     *          including the input data matrix, attribute sizes, and hypergeometric parameters
+     */
+    NumericMatrix data;
+    int n;
+    IntegerVector attrisize;
+    // Below are the hypergeometric parameters
+    double gamma;
+    NumericVector v;
+    NumericVector w;
+};
+
+void print_internal_state(const internal_state& state) {
+    /**
+     * @brief Print internal state of the MCMC algorithm
+     * @param state Internal state of the MCMC algorithm
+     * @details This function prints the current cluster assignments, cluster centers, and cluster dispersions
+     */
+    Rcpp::Rcout << "Cluster assignments: " << std::endl << "\t";
+    Rcpp::Rcout << state.c_i << std::endl;
+    Rcpp::Rcout << "Cluster centers: " << std::endl<< "\t";
+    for (int i = 0; i < state.center.length(); i++) {
+        Rcpp::Rcout << as<NumericVector>(state.center[i]) << std::endl;
+    }
+    Rcpp::Rcout << "Cluster dispersions: " << std::endl << "\t";
+    for (int i = 0; i < state.sigma.length(); i++) {
+        Rcpp::Rcout << as<NumericVector>(state.sigma[i]) << std::endl;
+    }
+}
+
 void print_progress_bar(int progress, int total, int bar_width = 50) {
     /**
      * @brief Displays a progress bar in the console
@@ -38,7 +83,7 @@ void print_progress_bar(int progress, int total, int bar_width = 50) {
     if (progress == total) Rcpp::Rcout << std::endl;
 }
 
-NumericVector unique_classes(const NumericVector & c_i) {
+IntegerVector unique_classes(const IntegerVector & c_i) {
     /**
      * @brief Gets unique class labels
      * @param c_i Vector of class assignments
@@ -55,7 +100,7 @@ NumericVector unique_classes(const NumericVector & c_i) {
     return wrap(std::vector<double>(unique_classes.begin(), unique_classes.end()));
 }
 
-NumericVector unique_classes_without_index(const NumericVector & c_i, const int index_to_del) {
+IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int index_to_del) {
     /**
      * @brief Gets unique class labels excluding a specific index
      * @param c_i Vector of class assignments
@@ -73,7 +118,7 @@ NumericVector unique_classes_without_index(const NumericVector & c_i, const int 
     return wrap(std::vector<double>(unique_classes.begin(), unique_classes.end()));
 }
 
-NumericVector sample_initial_assignment(double K = 4, int n = 10){
+IntegerVector sample_initial_assignment(double K = 4, int n = 10){
     /**
      * @brief Samples initial cluster assignments
      * @param K Number of initial clusters
@@ -82,14 +127,14 @@ NumericVector sample_initial_assignment(double K = 4, int n = 10){
      */
 
     // Sample initial cluster assignments
-    NumericVector c_i(n);
+    IntegerVector c_i(n);
     for (int i = 0; i < n; i++) {
         c_i[i] = sample(K, 1, true)[0] - 1; // with -1 we have the index starting from 0
     }
     return c_i;
 }
 
-int count_cluster_members(const NumericVector& c_i, int exclude_index, int cls) {
+int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) {
    
     int n_i_z = 0;
     for (int i = 0; i < c_i.length(); i++) {
@@ -101,7 +146,7 @@ int count_cluster_members(const NumericVector& c_i, int exclude_index, int cls) 
     return n_i_z;
 }
 
-NumericVector sample_center_1_cluster(const NumericVector & attrisize) {
+NumericVector sample_center_1_cluster(const IntegerVector & attrisize) {
     /**
      * @brief Sample initial cluster center
      * @param attrisize Vector of attribute sizes
@@ -117,7 +162,7 @@ NumericVector sample_center_1_cluster(const NumericVector & attrisize) {
     return center;
 }
 
-List sample_centers(const int number_cls, const NumericVector & attrisize) {
+List sample_centers(const int number_cls, const IntegerVector & attrisize) {
     /**
      * @brief Sample initial cluster centers
      * @param number_cls Number of clusters
@@ -136,7 +181,7 @@ List sample_centers(const int number_cls, const NumericVector & attrisize) {
     return centers;
 }
 
-NumericVector sample_sigma_1_cluster(const NumericVector & attrisize, const NumericVector & u, const NumericVector & v){
+NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize, const NumericVector & u, const NumericVector & v){
     /**
      * @brief Sample initial cluster dispersion (sigma)
      * @param attrisize Vector of attribute sizes
@@ -155,7 +200,7 @@ NumericVector sample_sigma_1_cluster(const NumericVector & attrisize, const Nume
     return sigma;
 }
 
-List sample_sigmas(const int number_cls, const NumericVector & attrisize, const NumericVector & u, const NumericVector & v) {
+List sample_sigmas(const int number_cls, const IntegerVector & attrisize, const NumericVector & u, const NumericVector & v) {
     /**
      * @brief Sample initial cluster dispersions (sigma)
      * @param attrisize Vector of attribute sizes
@@ -173,9 +218,9 @@ List sample_sigmas(const int number_cls, const NumericVector & attrisize, const 
     return sigma;
 }
 
-int sample_allocation(const int index_i, const NumericVector & x_i, const NumericVector & c_i, const NumericMatrix & data, 
-                        const List & center, const List & sigma,  const NumericVector & attrisize, 
-                        const double gamma, const int num_cls, const NumericVector & unique_classes_without_i, const int m){
+int sample_allocation(const int index_i, const NumericVector & x_i, const IntegerVector & c_i, const NumericMatrix & data, 
+                        const List & center, const List & sigma,  const IntegerVector & attrisize, 
+                        const double gamma, const int num_cls, const IntegerVector & unique_classes_without_i, const int m){
     /**
      * @brief Sample new cluster assignment for a given observation
      * @param index_i Index of current observation
@@ -248,9 +293,9 @@ int sample_allocation(const int index_i, const NumericVector & x_i, const Numeri
     return sample(cls, 1, true, probs)[0];
 }
 
-void clean_var(List& center, List& sigma, NumericVector& c_i, NumericVector& attrisize) {
+void clean_var(List& center, List& sigma, IntegerVector& c_i, IntegerVector& attrisize) {
     // Vector of existing clusters
-    NumericVector existing_cls = unique_classes(c_i);
+    IntegerVector existing_cls = unique_classes(c_i);
     /*
     for(int k = 0; k < existing_cls.length(); k++){
         std::cout << "Existing cluster " << existing_cls[k] << " - " ;
@@ -274,8 +319,8 @@ void clean_var(List& center, List& sigma, NumericVector& c_i, NumericVector& att
     sigma = new_sigma;
 }
 
-void update_centers(List & centers, const NumericMatrix & data, const NumericVector & attrisize, 
-                    const NumericVector & c_i, const List & sigma_prec) {
+void update_centers(List & centers, const NumericMatrix & data, const IntegerVector & attrisize, 
+                    const IntegerVector & c_i, const List & sigma_prec) {
     /**
      * @brief Update cluster centers
      * @param data Input data matrix
@@ -284,7 +329,7 @@ void update_centers(List & centers, const NumericMatrix & data, const NumericVec
      * @param sigma_prec Previous sigma values
      * @return List of updated cluster centers
      */
-    NumericVector clusters = unique_classes(c_i);
+    IntegerVector clusters = unique_classes(c_i);
     int num_cls = sigma_prec.length();
     List prob_centers(num_cls);
     int n = data.nrow();
@@ -368,8 +413,8 @@ void update_centers(List & centers, const NumericMatrix & data, const NumericVec
     }
 }
 
-void update_sigma(List & sigma, const List & centers, const NumericMatrix & data, const NumericVector & attrisize, 
-                    const NumericVector & c_i, const NumericVector & v, const NumericVector & w) {
+void update_sigma(List & sigma, const List & centers, const NumericMatrix & data, const IntegerVector & attrisize, 
+                    const IntegerVector & c_i, const NumericVector & v, const NumericVector & w) {
     /**
      * @brief Update cluster dispersions using the original method
      * @param sigma List of current cluster dispersions
@@ -399,7 +444,7 @@ void update_sigma(List & sigma, const List & centers, const NumericMatrix & data
 }
 
 // [[Rcpp::export]]
-List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
+List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                     NumericVector v, NumericVector w, int verbose = 0, int m = 5, int iterations = 1000) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
@@ -412,64 +457,38 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
      * @param iterations Number of MCMC iterations (default: 1000)
      * @return List containing final clustering results
     */
-    int n = data.nrow();
 
     // First cluster assignments
     int L = 4;
-    int total_cls = L + m;
+
+    aux_data const_data = {data, data.nrow(), attrisize, gamma, v, w};
+    internal_state state = {IntegerVector(), List(), List(), L};
+
 
     // Initialize cluster assignments
-    NumericVector c_i = sample_initial_assignment(L, n);
+    state.c_i = sample_initial_assignment(state.total_cls, const_data.n);
 
-    if(verbose == 1){
-        std::cout << "[DEBUG] - " << " c_i[i]: " << std::endl;
-        for (int i = 0; i < n; i++) {  
-            std::cout << c_i[i] << " ";
-        }
-        std::cout << std::endl;
-    }
-  
     // Initialize centers
-    List center = sample_centers(L, attrisize);
-
-    if(verbose == 1){
-        std::cout << "\n[DEBUG] - " << " center[i]: " << std::endl;
-        for (int i = 0; i < L; i++) {  
-            std::cout << "Center of cluster " << i << " :"<< std::endl << "\t";
-            NumericVector temp = as<NumericVector>(center[i]);
-            for(int j = 0; j < attrisize.length(); j++){
-                std::cout << temp[j] << " ";
-            }
-            std::cout << std::endl;
-        }
-    }
+    state.center = sample_centers(state.total_cls, const_data.attrisize);
 
     // Initialize sigma
-    List sigma = sample_sigmas(L, attrisize, v, w);
-    List sigma_prec;
+    state.sigma = sample_sigmas(state.total_cls, const_data.attrisize, const_data.v, const_data.w);
 
     if(verbose == 1){
-        std::cout << "\n[DEBUG] - " << " sigma[i]: " << std::endl;
-        for (int i = 0; i < L; i++) {  
-            std::cout << "Sigma of cluster " << i << " :"<< std::endl << "\t";
-            NumericVector temp = as<NumericVector>(sigma[i]);
-            for(int j = 0; j < attrisize.length(); j++){
-                std::cout << temp[j] << " ";
-            }
-            std::cout << std::endl;
-        }
+        print_internal_state(state);
     }
 
-    Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
 
     // Store results for each iteration
     List results(iterations);
     List iteration_result = List::create(
-        Named("assignments") = clone(c_i),
-        Named("centers") = clone(center),
-        Named("sigma") = clone(sigma)
+        Named("assignments") = clone(state.c_i),
+        Named("centers") = clone(state.center),
+        Named("sigma") = clone(state.sigma)
     );
     results[0] = iteration_result;
+    
+    Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
     
     for (int iter = 0; iter < iterations; iter++) {
         if(verbose != 0)
@@ -477,51 +496,35 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
 
         // Add latent classes
         for(int i = 0; i < m; i++){
-            center.push_back(sample_center_1_cluster(attrisize));
-            sigma.push_back(sample_sigma_1_cluster(attrisize, v, w));
+            state.center.push_back(sample_center_1_cluster(const_data.attrisize));
+            state.sigma.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
         }
         
         // update total number of clusters
-        total_cls = center.length();
+        state.total_cls = state.center.length();
 
-        for (int index_i = 0; index_i < n; index_i++) {
-            NumericVector x_i = data(index_i, _);
-            NumericVector unique_classes_without_i = unique_classes_without_index(c_i, index_i);
-            NumericVector unique_classes_vec = unique_classes(c_i);
+        for (int index_i = 0; index_i < const_data.n; index_i++) {
+            NumericVector x_i = const_data.data(index_i, _);
+            IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
+            IntegerVector unique_classes_vec = unique_classes(state.c_i);
 
-            c_i[index_i] = sample_allocation(index_i, x_i, c_i, data, center, sigma, attrisize, gamma, total_cls, unique_classes_without_i, m);
-            
+            state.c_i[index_i] = sample_allocation(index_i, x_i, state.c_i, const_data.data, state.center, state.sigma, 
+                                                    const_data.attrisize, const_data.gamma, state.total_cls, unique_classes_without_i, m);
+
             if(verbose == 2)
-                std::cout << "[DEBUG] - new cluster assignment - "<< index_i << " : " << c_i[index_i] << std::endl;
+                std::cout << "[DEBUG] - new cluster assignment - "<< index_i << " : " << state.c_i[index_i] << std::endl;
         } 
 
         // Clean variables
-        clean_var(center, sigma, c_i, attrisize);
+        clean_var(state.center, state.sigma, state.c_i, const_data.attrisize);
         
         // Update centers and sigmas
-        update_centers(center, data, attrisize, c_i, sigma);
-        update_sigma(sigma, center, data, attrisize, c_i, v, w);
-        //update_centers(center, data, attrisize, c_i, sigma);
+        update_centers(state.center, const_data.data, const_data.attrisize, state.c_i, state.sigma);
+        update_sigma(state.sigma, state.center, const_data.data, const_data.attrisize, state.c_i, const_data.v, const_data.w);
+        update_centers(state.center, const_data.data, const_data.attrisize, state.c_i, state.sigma);
 
         if(verbose == 2){
-            std::cout << "\n[DEBUG] - " << " center[i]: " << std::endl;
-            for (int i = 0; i < center.length(); i++) {  
-                std::cout << "Center of cluster " << i << " :"<< std::endl << "\t";
-                NumericVector temp = as<NumericVector>(center[i]);
-                for(int j = 0; j < attrisize.length(); j++){
-                    std::cout << temp[j] << " ";
-                }
-                std::cout << std::endl;
-            }
-            std::cout << "\n[DEBUG] - " << " sigma[i]: " << std::endl;
-            for (int i = 0; i < sigma.length(); i++) {  
-                std::cout << "sigma of cluster " << i << " :"<< std::endl << "\t";
-                NumericVector temp = as<NumericVector>(sigma[i]);
-                for(int j = 0; j < attrisize.length(); j++){
-                    std::cout << temp[j] << " ";
-                }
-                std::cout << std::endl;
-            }
+            print_internal_state(state);
         }
 
         // Update progress bar
@@ -532,9 +535,9 @@ List run_markov_chain(NumericMatrix data, NumericVector attrisize, double gamma,
 
     Rcpp::Rcout << std::endl << "Markov Chain sampling completed." << std::endl;
     return List::create(
-       Named("final_assignments") = c_i,
-       Named("final_centers") = center,
-       Named("sigma") = sigma
+       Named("final_assignments") = state.c_i,
+       Named("final_centers") = state.center,
+       Named("sigma") = state.sigma
        //Named("all_iterations") = results
     );
 }
