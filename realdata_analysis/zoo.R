@@ -9,12 +9,12 @@ source("../code/complement_functions.R")
 # Loading data
 #=========================================================================================
 
-zoo=read.table("../data/zoo.data",h=F,sep=",")
+zoo=read.table("../data/zoo.data", h=F, sep=",")
 nam = zoo$V1
 groundTruth = zoo$V18
-classes = factor(groundTruth,labels=c("mammals", "birds", "reptiles", "fish", 
-                                      "amphibians", "insects", "mollusks"))
-names(groundTruth)<-classes
+#classes = factor(groundTruth,labels=c("mammals", "birds", "reptiles", "fish", 
+                                      #"amphibians", "insects", "mollusks"))
+#names(groundTruth)<-classes
 
 #=========================================================================================
 # Data cleaning
@@ -55,11 +55,15 @@ v
 Rcpp::sourceCpp("../code/test.cpp")
 
 L_plurale <- c(2, 7, 14)
-iterations <- 5000
+iterations <- 15000
 m <- 3
 # Create 3 plot with different starting point
 for(l in L_plurale){
-  results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, m, iterations, l)
+  results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, m, iterations, l, unlist(groundTruth))
+  # Save results
+  filename <- paste("../results/results_", l, "_",m, "_", iterations,"_",Sys.time(),".RData", sep = "")
+  save(results, file = filename)
+  print(paste("Results for L = ", l, "saved in ", filename, sep = ""))
 
   ### First plot - Posterior distribution of the number of clusters
   # Calculation
@@ -78,7 +82,7 @@ for(l in L_plurale){
     theme_minimal() +
     scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
   # Save plot
-  filename <- paste("../plot/post_total_cls_", l, ".png", sep = "")
+  filename <- paste("../plot/post_total_cls_", l, "_", Sys.time(),".png", sep = "")
   ggsave(filename, plot = p)
 
   ### Second plot - Trace of number of clusters
@@ -100,7 +104,7 @@ for(l in L_plurale){
     theme_minimal()
 
   # Save plot
-  filename <- paste("../plot/trace_cls_starting_point_", l, ".png", sep = "")
+  filename <- paste("../plot/trace_cls_starting_point_", l, "_",Sys.time(), ".png", sep = "")
   ggsave(filename, plot = p)
 
 }

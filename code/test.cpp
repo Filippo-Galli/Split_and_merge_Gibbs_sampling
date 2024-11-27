@@ -416,8 +416,9 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
 }
 
 // [[Rcpp::export]]
-List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
-                    NumericVector v, NumericVector w, int verbose = 0, int m = 5, int iterations = 1000, int L = 1) {
+List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
+                    int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
+                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -434,8 +435,17 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     internal_state state = {IntegerVector(), List(), List(), L};
 
     // Initialize cluster assignments
-    state.c_i = sample_initial_assignment(state.total_cls, const_data.n);
+    IntegerVector initial_c_i;
+    if(c_i.isNotNull()) {
+        Rcpp::Rcout << "Initial cluster assignments provided" << std::endl;
+        initial_c_i = as<IntegerVector>(c_i);
+        state.total_cls = unique_classes(initial_c_i).length();
 
+    } else {
+        initial_c_i = sample_initial_assignment(L, const_data.n);
+    }
+    state.c_i = clone(initial_c_i);
+    
     // Initialize centers
     state.center = sample_centers(state.total_cls, const_data.attrisize);
     // Initialize sigma
@@ -483,7 +493,6 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                 n_update_latent = L + 1;
             }
 
-            #pragma omp parallel for
             for(int i = n_update_latent; i < state.total_cls; i++){;
                 as<List>(state.center)[n_update_latent] = sample_center_1_cluster(const_data.attrisize);
                 as<List>(state.sigma)[n_update_latent] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
@@ -498,13 +507,10 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
         // Clean variables
         clean_var(state, const_data.attrisize);
-
-        //print_internal_state(state, 1);
         
         // Update centers and sigmas
         update_centers(state, const_data);
         update_sigma(state.sigma, state.center, state.c_i, const_data);
-        update_centers(state, const_data);
 
         if(verbose == 2){
             print_internal_state(state);
@@ -520,10 +526,10 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         as<List>(results["centers"])[iter] = clone(state.center);
         as<List>(results["sigmas"])[iter] = clone(state.sigma);
     }
-    
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
     Rcpp::Rcout << std::endl << "Markov Chain sampling completed in: "<< duration.count() << " s"<< std::endl;
+    
 
     return results;
 }
