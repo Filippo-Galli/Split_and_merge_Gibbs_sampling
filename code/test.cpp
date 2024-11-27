@@ -5,16 +5,20 @@
  *          specifically designed for categorical data using Hamming distance.
  */
 
-#include <Rcpp.h>
 #include <set>
 #include <random>
 #include <algorithm>
 #include <chrono>
-#include <gibbs_utility.cpp>
+#include <unordered_map>
+
+#include <Rcpp.h>
 #include <RcppGSL.h>  // Add this explicit RcppGSL include
-#include <gsl/gsl_sf_hyperg.h>
-#include <hyperg.cpp>
 #include <Rinternals.h>
+#include <gsl/gsl_sf_hyperg.h>
+
+
+#include <gibbs_utility.cpp>
+#include <hyperg.cpp>
 using namespace Rcpp;
 
 struct internal_state {
@@ -105,13 +109,7 @@ IntegerVector unique_classes(const IntegerVector & c_i) {
      * @return NumericVector containing unique class labels
      * @note Exported to R using Rcpp
      */
-
-    std::set<double> unique_classes;
-    for (int i = 0; i < c_i.length(); ++i) {
-        unique_classes.insert(c_i[i]);
-    }
-
-    return wrap(std::vector<double>(unique_classes.begin(), unique_classes.end()));
+    return unique(c_i);
 }
 
 IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int index_to_del) {
@@ -139,13 +137,7 @@ IntegerVector sample_initial_assignment(double K = 4, int n = 10){
      * @return NumericVector containing initial cluster assignments
      * @note Exported to R using Rcpp
      */
-
-    // Sample initial cluster assignments
-    IntegerVector c_i(n);
-    for (int i = 0; i < n; i++) {
-        c_i[i] = sample(K, 1, true)[0] - 1; // with -1 we have the index starting from 0
-    }
-    return c_i;
+    return sample(K, n, true) -1;
 }
 
 int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) {
@@ -230,7 +222,7 @@ List sample_sigmas(const int number_cls, const aux_data & const_data) {
 }
 
 int sample_allocation(const int index_i, const aux_data & constant_data, 
-                        const internal_state & state, const int m){
+                        const internal_state & state, const int m, const IntegerVector & unique_classes_without_i) {
     /**
      * @brief Sample new cluster assignment for a single data point
      * @param index_i Index of the data point
@@ -241,7 +233,6 @@ int sample_allocation(const int index_i, const aux_data & constant_data,
      */
 
     NumericVector x_i = constant_data.data(index_i, _);
-    IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
 
     // Calculate probabilities
     NumericVector probs(state.total_cls);
@@ -266,7 +257,6 @@ int sample_allocation(const int index_i, const aux_data & constant_data,
         if (k < unique_classes_without_i.length()) {
             // Count instances in the z cluster excluding the current point i
             n_i_z = count_cluster_members(state.c_i, index_i, unique_classes_without_i[k]);
-            //std::cout << "[DEBUG] - n_i_z " << index_i << " : " << n_i_z << std::endl;
             // Calculate probability
             probs[k] = n_i_z * std::exp(Hamming) ;
         }
@@ -290,23 +280,38 @@ int sample_allocation(const int index_i, const aux_data & constant_data,
 }
 
 void clean_var(internal_state & state, const IntegerVector& attrisize) {
-    // Vector of existing clusters
+    // Efficiently find unique existing clusters
     IntegerVector existing_cls = unique_classes(state.c_i);
+    int num_existing_cls = existing_cls.length();
 
-    List new_center(existing_cls.length());
-    List new_sigma(existing_cls.length());
-
-    for(int exist_cls = 0; exist_cls < existing_cls.length(); ++exist_cls){
-        new_center[exist_cls] = state.center[existing_cls[exist_cls]];
-        new_sigma[exist_cls] = state.sigma[existing_cls[exist_cls]];
+    // Create a mapping for efficient cluster index lookup
+    std::unordered_map<int, int> cls_to_new_index;
+    for(int i = 0; i < num_existing_cls; ++i) {
+        cls_to_new_index[existing_cls[i]] = i;
     }
 
-    // Update the center with the cleaned values
+    // Preallocate new containers with the correct size
+    List new_center(num_existing_cls);
+    List new_sigma(num_existing_cls);
+
+    // Efficiently copy centers and sigmas
+    for(int i = 0; i < num_existing_cls; ++i) {
+        new_center[i] = state.center[existing_cls[i]];
+        new_sigma[i] = state.sigma[existing_cls[i]];
+    }
+
+    // Update state with new centers, sigmas, and cluster count
     state.center = new_center;
     state.sigma = new_sigma;
+    state.total_cls = num_existing_cls;
 
-    // Update the total number of clusters
-    state.total_cls = state.center.length();
+    // Vectorized cluster index update using the mapping
+    for(int i = 0; i < state.c_i.length(); i++) {
+        auto it = cls_to_new_index.find(state.c_i[i]);
+        if(it != cls_to_new_index.end()) {
+            state.c_i[i] = it->second;
+        }
+    }
 }
 
 void update_centers(internal_state & state, const aux_data & const_data) {
@@ -318,7 +323,7 @@ void update_centers(internal_state & state, const aux_data & const_data) {
      */
 
     IntegerVector clusters = unique_classes(state.c_i);
-    int num_cls = state.total_cls;
+    int num_cls = state.total_cls;    // Initialize cluster assignments
     List prob_centers(state.total_cls);
     
     /*
@@ -334,8 +339,8 @@ void update_centers(internal_state & state, const aux_data & const_data) {
             
             for (int a = 0; a < const_data.attrisize[i]; a++) { // for each modality
 
-                double num = 0, sumdelta = 0, costante = 0;
-                sumdelta = std::count(const_data.data(_,i).begin(), const_data.data(_,i).end(), a + 1);
+                double num = 0, costante = 0;
+                double sumdelta = sum(const_data.data(_, i) == (a + 1));
                 num = (sumdelta - const_data.n)/sigma_value;
                 
                 probs[a] = num;
@@ -351,6 +356,7 @@ void update_centers(internal_state & state, const aux_data & const_data) {
             
             // Store probabilities for this attribute
             prob_center[i] = probs;
+
         }
         prob_centers[c] = prob_center;
     }
@@ -432,9 +438,12 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
     // Initialize centers
     state.center = sample_centers(state.total_cls, const_data.attrisize);
-
     // Initialize sigma
     state.sigma = sample_sigmas(state.total_cls, const_data);
+
+    // Update - test
+    update_centers(state, const_data);
+    update_sigma(state.sigma, state.center, state.c_i, const_data);
 
     if(verbose == 1){
         print_internal_state(state);
@@ -448,9 +457,12 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     auto start_time = std::chrono::high_resolution_clock::now();
     Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
     
+    int n_update_latent = 0; 
     for (int iter = 0; iter < iterations; iter++) {
         if(verbose != 0)
             std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations << std::endl;
+
+        L = unique_classes(state.c_i).length();
 
         // Add latent classes
         for(int i = 0; i < m; i++){
@@ -463,7 +475,22 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
         // Sample new cluster assignments
         for (int index_i = 0; index_i < const_data.n; index_i++) {
-            state.c_i[index_i] = sample_allocation(index_i, const_data, state, m);
+            IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
+            
+            // If observation i create a new cluster update m-1 latent cls else m latent cls
+            n_update_latent = L;
+            if(unique_classes(state.c_i).length() != unique_classes_without_i.length()){
+                n_update_latent = L + 1;
+            }
+
+            #pragma omp parallel for
+            for(int i = n_update_latent; i < state.total_cls; i++){;
+                as<List>(state.center)[n_update_latent] = sample_center_1_cluster(const_data.attrisize);
+                as<List>(state.sigma)[n_update_latent] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+            }
+            
+
+            state.c_i[index_i] = sample_allocation(index_i, const_data, state, m, unique_classes_without_i);
 
             if(verbose == 2)
                 std::cout << "[DEBUG] - new cluster assignment - "<< index_i << " : " << state.c_i[index_i] << std::endl;
@@ -471,6 +498,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
         // Clean variables
         clean_var(state, const_data.attrisize);
+
+        //print_internal_state(state, 1);
         
         // Update centers and sigmas
         update_centers(state, const_data);

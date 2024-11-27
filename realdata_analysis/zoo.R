@@ -2,6 +2,7 @@ setwd("~/Documents/Split_and_merge_Gibbs_sampling/realdata_analysis")
 library(AntMAN)
 library(mcclust.ext)
 library(ggplot2)
+library(tidyverse)
 source("../code/complement_functions.R")
 
 #=========================================================================================
@@ -54,8 +55,9 @@ v
 Rcpp::sourceCpp("../code/test.cpp")
 
 L_plurale <- c(2, 7, 14)
-iterations <- 10000
+iterations <- 5000
 m <- 3
+# Create 3 plot with different starting point
 for(l in L_plurale){
   results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, m, iterations, l)
 
@@ -66,7 +68,7 @@ for(l in L_plurale){
   df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
                    rel_freq = as.numeric(post_total_cls))
   # Create plot
-  p <- ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
+  p <-ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
     geom_col() + 
     labs(
       x = "Cluster Found",
@@ -76,44 +78,58 @@ for(l in L_plurale){
     theme_minimal() +
     scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
   # Save plot
-  filename <- paste("post_total_cls_", l, ".png", sep = "")
+  filename <- paste("../plot/post_total_cls_", l, ".png", sep = "")
   ggsave(filename, plot = p)
 
-  ### Second plot - Evolution of the number of clusters
-  # Calculation
-  df <- data.frame(iteration = 1:iterations,
-                   total_cls = unlist(results$total_cls) + 1)
-  # Create plot
-  p <- ggplot(data = df, aes(x = iteration, y = total_cls)) + 
-    geom_line() + 
+  ### Second plot - Trace of number of clusters
+  total_cls_df <- data.frame(
+    Iteration = seq_along(results$total_cls),
+    NumClusters = unlist(results$total_cls)
+  )
+
+  total_cls_df_long <- total_cls_df %>%
+  pivot_longer(cols = starts_with("NumClusters"), names_to = "variable", values_to = "value")
+
+  p <- ggplot(total_cls_df_long, aes(x = Iteration, y = value)) +
+    geom_line() +
     labs(
-      x = "Iteration",
-      y = "Number of Clusters",
-      title = "Evolution of the number of clusters"
+      x = "Iteration", 
+      y = "Number of clusters", 
+      title = paste("Trace of Number of Clusters starting from L =", l)
     ) +
     theme_minimal()
 
+  # Save plot
+  filename <- paste("../plot/trace_cls_starting_point_", l, ".png", sep = "")
+  ggsave(filename, plot = p)
+
 }
 
-iterations <- 20000
-results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, m, iterations, 7)
-df <- data.frame(iteration = 1:iterations,
-                  total_cls = unlist(results$total_cls) + 1)
+# Trace of c_i history for specific observation
+choosen_idx <- 100
+temp <- sapply(seq_along(results$c_i), function(i) {
+  unlist(results$c_i[[i]])[choosen_idx]
+})
 
-ggplot(data = df, aes(x = iteration, y = total_cls)) + 
-  geom_line() + 
+c_i_df <- data.frame(
+  Iteration = seq_along(temp),
+  ClusterAssignment = temp
+)
+
+ggplot(c_i_df, aes(x = Iteration, y = ClusterAssignment)) +
+  geom_line() +
   labs(
-    x = "Iteration",
-    y = "Number of Clusters",
-    title = "Evolution of the number of clusters"
+    x = "Iteration", 
+    y = "Cluster Assignment", 
+    title = paste("Trace of c_i History for Observation ", choosen_idx)
   ) +
   theme_minimal()
 
 ### Posterior similarity matrix - NON VA
 # Create matrix from c_i 
-C <- matrix(NA, nrow = iterations, ncol = nrow(zoo))
+C <- matrix(NA, nrow = iter, ncol = nrow(zoo))
 
-for(i in 1:iterations){
+for(i in 1:iter){
   C[i, ] <- unlist(results$c_i[i]) + 1
 }
 
