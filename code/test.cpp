@@ -186,20 +186,20 @@ List sample_centers(const int number_cls, const IntegerVector & attrisize) {
     return centers;
 }
 
-NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize, const NumericVector & u, const NumericVector & v){
+NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize, const NumericVector & v, const NumericVector & w){
     /**
      * @brief Sample initial cluster dispersion (sigma)
      * @param attrisize Vector of attribute sizes
      * @param number_cls Number of clusters
-     * @param u Parameter for hypergeometric distribution
      * @param v Parameter for hypergeometric distribution
+     * @param w Parameter for hypergeometric distribution
      * @return NumericVector containing cluster dispersions for each attribute
      */
 
     NumericVector sigma(attrisize.length());
 
     for (int i = 0; i < attrisize.length(); i++) {
-        sigma[i] = rhyper_sig(1, v[i], u[i], attrisize[i])[0];
+        sigma[i] = rhyper_sig(1, v[i], w[i], attrisize[i])[0];
     } 
 
     return sigma;

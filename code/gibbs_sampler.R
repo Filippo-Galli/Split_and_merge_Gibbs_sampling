@@ -172,8 +172,8 @@ gibbs_mix_con = function(G,
         
         ### SAMPLING SIGMA ###
         Sigma.curr.new[i,j]=rhyper_sig(n = 1,
-                                    d = v[j]+dd,
                                     c = u[j]+cc,
+                                    d = v[j]+dd,
                                     m = attri_size[j])
       }
     }

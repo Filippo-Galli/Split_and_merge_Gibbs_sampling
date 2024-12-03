@@ -45,23 +45,21 @@ Sys.setenv("PKG_CXXFLAGS" = paste0("-I/home/filippo/R/x86_64-pc-linux-gnu-librar
 # Include full library paths and libraries
 Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 
-u <- rep(6, 16)
-u[13] <- 3
-v <- rep(0.25, 16)
-v[13]<-0.5
-u
-v
+u = c(rep(6,12),3,rep(6,3))
+v = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/test.cpp")
 
-L_plurale <- c(2, 7, 14)
+L_plurale <- c(2)
 iterations <- 15000
 m <- 3
 # Create 3 plot with different starting point
 for(l in L_plurale){
-  results <- run_markov_chain(zoo, mm, 0.68, u, v, 0, m, iterations, l, unlist(groundTruth))
+  temp_time <- format(Sys.time(), "%Y-%m-%d_%H%M%S")
+
+  results <- run_markov_chain(zoo, mm, 0.68, v, u, 0, m, iterations, l, unlist(groundTruth))
   # Save results
-  filename <- paste("../results/results_", l, "_",m, "_", iterations,"_",Sys.time(),".RData", sep = "")
+  filename <- paste("../results/results_", l, "_",m, "_", iterations,"_",temp_time,".RData", sep = "")
   save(results, file = filename)
   print(paste("Results for L = ", l, "saved in ", filename, sep = ""))
 
@@ -82,7 +80,7 @@ for(l in L_plurale){
     theme_minimal() +
     scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
   # Save plot
-  filename <- paste("../plot/post_total_cls_", l, "_", Sys.time(),".png", sep = "")
+  filename <- paste("../plot/post_total_cls_", l, "_", temp_time,".png", sep = "")
   ggsave(filename, plot = p)
 
   ### Second plot - Trace of number of clusters
@@ -104,7 +102,7 @@ for(l in L_plurale){
     theme_minimal()
 
   # Save plot
-  filename <- paste("../plot/trace_cls_starting_point_", l, "_",Sys.time(), ".png", sep = "")
+  filename <- paste("../plot/trace_cls_starting_point_", l, "_", temp_time, ".png", sep = "")
   ggsave(filename, plot = p)
 
 }
