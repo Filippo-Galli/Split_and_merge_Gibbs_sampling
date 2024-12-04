@@ -415,6 +415,26 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
     }
 }
 
+double compute_loglikelihood(internal_state & state, aux_data & const_data) {
+    double loglikelihood = 0.0;
+    
+    // Compute likelihood for each observation
+    for (int i = 0; i < const_data.n; i++) {
+        int cluster = state.c_i[i];
+        NumericVector center = as<NumericVector>(state.center[cluster]);
+        NumericVector sigma = as<NumericVector>(state.sigma[cluster]);
+        
+        double Hamming = 0.0;
+        for (int j = 0; j < const_data.attrisize.length(); j++) {
+            Hamming += dhamming(const_data.data(i, j), center[j], sigma[j], const_data.attrisize[j], true);
+        }
+
+        loglikelihood += Hamming;
+    }
+    
+    return loglikelihood;
+}
+
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
@@ -462,7 +482,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     List results = List::create(Named("total_cls") = List(iterations),
                                 Named("c_i") = List(iterations),
                                 Named("centers") = List(iterations),
-                                Named("sigmas") = List(iterations));
+                                Named("sigmas") = List(iterations), 
+                                Named("loglikelihood") = NumericVector(iterations));
 
     auto start_time = std::chrono::high_resolution_clock::now();
     Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
@@ -516,6 +537,9 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             print_internal_state(state);
         }
 
+        // Calculate likelihood
+        double loglikelihood = compute_loglikelihood(state, const_data);
+
         // Update progress bar
         if(verbose == 0)
             print_progress_bar(iter + 1, iterations);
@@ -525,6 +549,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         as<List>(results["c_i"])[iter] = clone(state.c_i);
         as<List>(results["centers"])[iter] = clone(state.center);
         as<List>(results["sigmas"])[iter] = clone(state.sigma);
+        as<NumericVector>(results["loglikelihood"])[iter] = loglikelihood;
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);

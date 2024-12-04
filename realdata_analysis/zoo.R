@@ -50,12 +50,12 @@ v = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/test.cpp")
 
-L_plurale <- c(2)
-iterations <- 15000
+L_plurale <- c(7)
+iterations <- 5000
 m <- 3
 # Create 3 plot with different starting point
 for(l in L_plurale){
-  temp_time <- format(Sys.time(), "%Y-%m-%d_%H%M%S")
+  temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
 
   results <- run_markov_chain(zoo, mm, 0.68, v, u, 0, m, iterations, l, unlist(groundTruth))
   # Save results
@@ -127,11 +127,26 @@ ggplot(c_i_df, aes(x = Iteration, y = ClusterAssignment)) +
   ) +
   theme_minimal()
 
+### Plot the log-likelihood
+log_likelihood_df <- data.frame(
+  Iteration = seq_along(results$loglikelihood),
+  LogLikelihood = results$loglikelihood
+)
+
+ggplot(log_likelihood_df, aes(x = Iteration, y = LogLikelihood)) +
+  geom_line() +
+  labs(
+    x = "Iteration",
+    y = "Log-Likelihood",
+    title = "Log-Likelihood Trace"
+  ) +
+  theme_minimal()
+
 ### Posterior similarity matrix - NON VA
 # Create matrix from c_i 
-C <- matrix(NA, nrow = iter, ncol = nrow(zoo))
+C <- matrix(NA, nrow = iterations, ncol = nrow(zoo))
 
-for(i in 1:iter){
+for(i in 1:iterations){
   C[i, ] <- unlist(results$c_i[i]) + 1
 }
 
