@@ -301,8 +301,8 @@ void clean_var(internal_state & state, const IntegerVector& attrisize) {
     }
 
     // Update state with new centers, sigmas, and cluster count
-    state.center = new_center;
-    state.sigma = new_sigma;
+    state.center = std::move(new_center);
+    state.sigma = std::move(new_sigma);
     state.total_cls = num_existing_cls;
 
     // Vectorized cluster index update using the mapping
@@ -383,8 +383,8 @@ void update_centers(internal_state & state, const aux_data & const_data) {
             //std::cout << std::endl << "[DEBUG] - center: " << attr_centers[j] << std::endl;
         }
 
-        // hard copy to avoid problems with pointers
-        state.center[i] = clone(attr_centers);
+        // move to avoid problems with pointers
+        state.center[i] = std::move(attr_centers);
     }
 }
 
@@ -411,7 +411,7 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
             double new_v = const_data.v[i] + sumdelta;
             new_sigma_cluster[i] = rhyper_sig(1, new_v, new_w, const_data.attrisize[i])[0];
         }
-        sigma[c] = clone(new_sigma_cluster);
+        sigma[c] = std::move(new_sigma_cluster);
     }
 }
 
@@ -515,8 +515,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             }
 
             for(int i = n_update_latent; i < state.total_cls; i++){;
-                as<List>(state.center)[n_update_latent] = sample_center_1_cluster(const_data.attrisize);
-                as<List>(state.sigma)[n_update_latent] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+                as<List>(state.center)[i] = std::move(sample_center_1_cluster(const_data.attrisize));
+                as<List>(state.sigma)[i] = std::move(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
             }
             
 

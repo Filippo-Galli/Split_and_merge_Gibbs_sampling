@@ -51,7 +51,7 @@ v = c(rep(0.25,12),0.5,rep(0.25,3))
 Rcpp::sourceCpp("../code/test.cpp")
 
 L_plurale <- c(7)
-iterations <- 5000
+iterations <- 10000
 m <- 3
 # Create 3 plot with different starting point
 for(l in L_plurale){
@@ -61,7 +61,7 @@ for(l in L_plurale){
   # Save results
   filename <- paste("../results/results_", l, "_",m, "_", iterations,"_",temp_time,".RData", sep = "")
   save(results, file = filename)
-  print(paste("Results for L = ", l, "saved in ", filename, sep = ""))
+  print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 
   ### First plot - Posterior distribution of the number of clusters
   # Calculation
