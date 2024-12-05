@@ -140,7 +140,10 @@ IntegerVector sample_initial_assignment(double K = 4, int n = 10){
      * @return NumericVector containing initial cluster assignments
      * @note Exported to R using Rcpp
      */
-    return sample(K, n, true) -1;
+    
+    IntegerVector cluster_assignments = Rcpp::sample(K, n, true); 
+    cluster_assignments = cluster_assignments - 1; 
+    return cluster_assignments;
 }
 
 int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) {
