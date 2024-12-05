@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <chrono>
 #include <unordered_map>
+#include <iomanip>
 
 #include <Rcpp.h>
 #include <RcppGSL.h>  // Add this explicit RcppGSL include
@@ -63,7 +64,7 @@ void print_internal_state(const internal_state& state, int interest = -1) {
     if(interest == 2 || interest == -1){
         Rcpp::Rcout << "Centers: " << std::endl<< "\t";
         for (int i = 0; i < state.center.length(); i++) {
-            Rcpp::Rcout << "Cluster "<< i << " :"<< as<NumericVector>(state.center[i]) << std::endl;
+            Rcpp::Rcout << "Cluster "<< i << " :"<< std::setprecision(5)<< as<NumericVector>(state.center[i]) << std::endl;
             if(i < state.center.length() - 1)
                 Rcpp::Rcout << "\t";
         }
@@ -109,7 +110,9 @@ IntegerVector unique_classes(const IntegerVector & c_i) {
      * @return NumericVector containing unique class labels
      * @note Exported to R using Rcpp
      */
-    return unique(c_i);
+    IntegerVector unique_vec = unique(c_i);
+    std::sort(unique_vec.begin(), unique_vec.end());
+    return unique_vec;
 }
 
 IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int index_to_del) {
@@ -215,7 +218,7 @@ List sample_sigmas(const int number_cls, const aux_data & const_data) {
     List sigma(number_cls);
 
     for (int i = 0; i < number_cls; i++) {
-        sigma[i] = rhyper_sig(const_data.attrisize.length(), const_data.v[i], const_data.w[i], const_data.attrisize[i]);
+        sigma[i] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
     } 
 
     return sigma;
@@ -286,8 +289,25 @@ void clean_var(internal_state & state, const IntegerVector& attrisize) {
 
     // Create a mapping for efficient cluster index lookup
     std::unordered_map<int, int> cls_to_new_index;
+    /*
     for(int i = 0; i < num_existing_cls; ++i) {
         cls_to_new_index[existing_cls[i]] = i;
+    }
+    */
+
+    int idx_temp = 0;
+    for(int i = 0; i < num_existing_cls; ++i) {
+        if(existing_cls[i] < num_existing_cls){
+            cls_to_new_index[existing_cls[i]] = existing_cls[i];
+        }
+        else{
+            // find the first available index for new clusters
+            while(cls_to_new_index.find(idx_temp) == cls_to_new_index.end()){
+                idx_temp++;
+            }
+            
+            cls_to_new_index[existing_cls[i]] = idx_temp;
+        }
     }
 
     // Preallocate new containers with the correct size
@@ -324,12 +344,13 @@ void update_centers(internal_state & state, const aux_data & const_data) {
 
     IntegerVector clusters = unique_classes(state.c_i);
     int num_cls = state.total_cls;    // Initialize cluster assignments
-    List prob_centers(state.total_cls);
+    //List prob_centers(state.total_cls);
+    List prob_centers = Center_prob(const_data.data, as<NumericVector>(state.sigma[state.sigma.length() -1]), as<NumericVector>(const_data.attrisize));
     
     /*
      * Calculation of probabilities for each attribute and modality to be chosen
      */
-    for (int c = 0; c < num_cls; ++c){ // for each cluster
+    /*for (int c = 0; c < num_cls; ++c){ // for each cluster
         NumericVector sigma_values = as<NumericVector>(state.sigma[c]);
         List prob_center(const_data.attrisize.length());
         for (int i = 0; i < const_data.attrisize.length(); i++) { // for each attribute
@@ -359,16 +380,22 @@ void update_centers(internal_state & state, const aux_data & const_data) {
 
         }
         prob_centers[c] = prob_center;
-    }
+    }*/
     
     /*
      * Sample new cluster centers using the probabilities calculated before
      */
     NumericVector attr_centers(const_data.attrisize.length());
     List prob_centers_cluster;
+
+    List attri_List = Attributes_List(const_data.data, const_data.data.ncol());
     
+    for (int i = 0; i < num_cls; i++) { 
+        state.center[i] = clone(Samp_Center(attri_List, prob_centers, const_data.attrisize.length()));
+    }
     
     // for each cluster
+    /*
     for (int i = 0; i < num_cls; i++) {         
         // for each cluster
         prob_centers_cluster = as<List>(prob_centers[i]);
@@ -378,14 +405,14 @@ void update_centers(internal_state & state, const aux_data & const_data) {
             int attrisize_j = const_data.attrisize[j];
             
             NumericVector prob_centers_attribute_j = as<NumericVector>(prob_centers_cluster[j]);
-            //std::cout << std::endl << "[DEBUG] - prob_centers_attribute_j: " << prob_centers_attribute_j << std::endl;
+            std::cout << std::endl << "[DEBUG] - prob_centers_attribute_j: " << prob_centers_attribute_j << std::endl;
             attr_centers[j] = sample(attrisize_j, 1, true, prob_centers_attribute_j)[0];
             //std::cout << std::endl << "[DEBUG] - center: " << attr_centers[j] << std::endl;
         }
 
         // move to avoid problems with pointers
-        state.center[i] = std::move(attr_centers);
-    }
+        state.center[i] = clone(attr_centers);
+    }*/
 }
 
 void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, const aux_data & const_data) {
@@ -403,15 +430,19 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
     for (int c = 0; c < num_cls; c++) { // for each cluster
         NumericVector sigmas_cluster = as<NumericVector>(sigma[c]);
         NumericVector centers_cluster = as<NumericVector>(centers[c]);
+        NumericVector new_w(const_data.attrisize.length());
+        NumericVector new_v(const_data.attrisize.length());
 
         NumericVector new_sigma_cluster(const_data.attrisize.length());
         for (int i = 0; i < const_data.attrisize.length(); ++i ){ // for each attribute
             double sumdelta = std::count(const_data.data(_,i).begin(), const_data.data(_,i).end(), centers_cluster[i]);
-            double new_w = const_data.w[i] + const_data.n - sumdelta;
-            double new_v = const_data.v[i] + sumdelta;
-            new_sigma_cluster[i] = rhyper_sig(1, new_v, new_w, const_data.attrisize[i])[0];
+            new_w[i] = const_data.w[i] + const_data.n - sumdelta;
+            new_v[i] = const_data.v[i] + sumdelta;
+
+            
         }
-        sigma[c] = std::move(new_sigma_cluster);
+        new_sigma_cluster = sample_sigma_1_cluster(const_data.attrisize, new_v, new_w);
+        sigma[c] = clone(new_sigma_cluster);
     }
 }
 
@@ -451,6 +482,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
      * @return List containing final clustering results
     */
 
+    int burnin = 5000;
     aux_data const_data = {data, data.nrow(), attrisize, gamma, v, w};
     internal_state state = {IntegerVector(), List(), List(), L};
 
@@ -471,11 +503,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     // Initialize sigma
     state.sigma = sample_sigmas(state.total_cls, const_data);
 
-    // Update - test
-    update_centers(state, const_data);
-    update_sigma(state.sigma, state.center, state.c_i, const_data);
-
-    if(verbose == 1){
+    if(verbose == 2 or verbose == 1){
         print_internal_state(state);
     }
 
@@ -489,7 +517,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
     
     int n_update_latent = 0; 
-    for (int iter = 0; iter < iterations; iter++) {
+    for (int iter = 0; iter < iterations + burnin; iter++) {
         if(verbose != 0)
             std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations << std::endl;
 
@@ -522,7 +550,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
             state.c_i[index_i] = sample_allocation(index_i, const_data, state, m, unique_classes_without_i);
 
-            if(verbose == 2)
+            if(verbose == 3)
                 std::cout << "[DEBUG] - new cluster assignment - "<< index_i << " : " << state.c_i[index_i] << std::endl;
         } 
 
@@ -542,14 +570,16 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
         // Update progress bar
         if(verbose == 0)
-            print_progress_bar(iter + 1, iterations);
+            print_progress_bar(iter + 1, iterations + burnin);
 
         // Save results
-        as<List>(results["total_cls"])[iter] = state.total_cls;
-        as<List>(results["c_i"])[iter] = clone(state.c_i);
-        as<List>(results["centers"])[iter] = clone(state.center);
-        as<List>(results["sigmas"])[iter] = clone(state.sigma);
-        as<NumericVector>(results["loglikelihood"])[iter] = loglikelihood;
+        if(iter >= burnin){
+            as<List>(results["total_cls"])[iter - burnin] = state.total_cls;
+            as<List>(results["c_i"])[iter - burnin] = clone(state.c_i);
+            as<List>(results["centers"])[iter - burnin] = clone(state.center);
+            as<List>(results["sigmas"])[iter - burnin] = clone(state.sigma);
+            as<NumericVector>(results["loglikelihood"])[iter - burnin] = loglikelihood;
+        }
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);

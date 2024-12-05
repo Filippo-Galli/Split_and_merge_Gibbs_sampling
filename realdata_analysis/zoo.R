@@ -51,7 +51,7 @@ v = c(rep(0.25,12),0.5,rep(0.25,3))
 Rcpp::sourceCpp("../code/test.cpp")
 
 L_plurale <- c(7)
-iterations <- 10000
+iterations <- 25000
 m <- 3
 # Create 3 plot with different starting point
 for(l in L_plurale){
@@ -107,6 +107,15 @@ for(l in L_plurale){
 
 }
 
+# Print last sigma values
+print(paste("Sigma: \n", tail(results$sigma, 1)))
+
+# Print last c_i values
+print(paste("c_i: \n", tail(results$c_i, 1)))
+
+# Print last centers values
+print(paste("Centers: \n", tail(results$centers, 1)))
+
 # Trace of c_i history for specific observation
 choosen_idx <- 100
 temp <- sapply(seq_along(results$c_i), function(i) {
@@ -156,7 +165,6 @@ VI = minVI(psm)
 table(VI$cl) 
 arandi(VI$cl, groundTruth)
 myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
-
 
 #=========================================================================================
 # Gibbs sampler HMM
