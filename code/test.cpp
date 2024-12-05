@@ -416,33 +416,36 @@ void update_centers(internal_state & state, const aux_data & const_data) {
 }
 
 void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, const aux_data & const_data) {
-
-    /**
-     * @brief Update cluster dispersions
-     * @param sigma List of cluster dispersions
-     * @param centers List of cluster centers
-     * @param c_i Current cluster assignments
-     * @param const_data Auxiliary data for the MCMC algorithm
-     */
-
     int num_cls = sigma.length();
-
+    NumericVector new_w(const_data.attrisize.length());
+    NumericVector new_v(const_data.attrisize.length());
+    
     for (int c = 0; c < num_cls; c++) { // for each cluster
+        // Create indices for rows in this cluster
+        IntegerVector cluster_indices;
+        for (int i = 0; i < c_i.length(); ++i) {
+            if (c_i[i] == c) {
+                cluster_indices.push_back(i);
+            }
+        }
+        
+        // Extract cluster-specific data
+        NumericMatrix cluster_data(cluster_indices.length(), const_data.data.ncol());
+        for (int i = 0; i < cluster_indices.length(); ++i) {
+            cluster_data(i, _) = const_data.data(cluster_indices[i], _);
+        }
+        
+        int nm = cluster_indices.length();
         NumericVector sigmas_cluster = as<NumericVector>(sigma[c]);
         NumericVector centers_cluster = as<NumericVector>(centers[c]);
-        NumericVector new_w(const_data.attrisize.length());
-        NumericVector new_v(const_data.attrisize.length());
-
-        NumericVector new_sigma_cluster(const_data.attrisize.length());
+        
         for (int i = 0; i < const_data.attrisize.length(); ++i ){ // for each attribute
-            double sumdelta = std::count(const_data.data(_,i).begin(), const_data.data(_,i).end(), centers_cluster[i]);
-            new_w[i] = const_data.w[i] + const_data.n - sumdelta;
-            new_v[i] = const_data.v[i] + sumdelta;
-
-            
+            NumericVector col = cluster_data(_, i);
+            double sumdelta = sum(col != centers_cluster[i]);
+            new_w[i] = const_data.w[i] + nm - sumdelta;
+            new_v[i] = const_data.v[i] + sumdelta;   
         }
-        new_sigma_cluster = sample_sigma_1_cluster(const_data.attrisize, new_v, new_w);
-        sigma[c] = clone(new_sigma_cluster);
+        sigma[c] = clone(sample_sigma_1_cluster(const_data.attrisize, new_v, new_w));
     }
 }
 
@@ -469,7 +472,7 @@ double compute_loglikelihood(internal_state & state, aux_data & const_data) {
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
-                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue) {
+                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -481,8 +484,6 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
      * @param iterations Number of MCMC iterations (default: 1000)
      * @return List containing final clustering results
     */
-
-    int burnin = 5000;
     aux_data const_data = {data, data.nrow(), attrisize, gamma, v, w};
     internal_state state = {IntegerVector(), List(), List(), L};
 
