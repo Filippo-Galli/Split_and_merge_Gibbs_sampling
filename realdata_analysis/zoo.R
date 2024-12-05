@@ -51,13 +51,13 @@ v = c(rep(0.25,12),0.5,rep(0.25,3))
 Rcpp::sourceCpp("../code/test.cpp")
 
 L_plurale <- c(7)
-iterations <- 25000
+iterations <- 10000
 m <- 3
 # Create 3 plot with different starting point
 for(l in L_plurale){
   temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
 
-  results <- run_markov_chain(zoo, mm, 0.68, v, u, 0, m, iterations, l, unlist(groundTruth))
+  results <- run_markov_chain(zoo, mm, 0.68, v, u, 0, m, iterations, l, unlist(groundTruth), burnin = 8000)
   # Save results
   filename <- paste("../results/results_", l, "_",m, "_", iterations,"_",temp_time,".RData", sep = "")
   save(results, file = filename)
@@ -65,7 +65,7 @@ for(l in L_plurale){
 
   ### First plot - Posterior distribution of the number of clusters
   # Calculation
-  post_total_cls = table(unlist(results$total_cls) + 1)/length(unlist(results$total_cls))
+  post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
   title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
   df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
                    rel_freq = as.numeric(post_total_cls))
@@ -107,16 +107,7 @@ for(l in L_plurale){
 
 }
 
-# Print last sigma values
-print(paste("Sigma: \n", tail(results$sigma, 1)))
-
-# Print last c_i values
-print(paste("c_i: \n", tail(results$c_i, 1)))
-
-# Print last centers values
-print(paste("Centers: \n", tail(results$centers, 1)))
-
-# Trace of c_i history for specific observation
+### Trace of c_i history for specific observation
 choosen_idx <- 100
 temp <- sapply(seq_along(results$c_i), function(i) {
   unlist(results$c_i[[i]])[choosen_idx]
@@ -151,7 +142,7 @@ ggplot(log_likelihood_df, aes(x = Iteration, y = LogLikelihood)) +
   ) +
   theme_minimal()
 
-### Posterior similarity matrix - NON VA
+### Posterior similarity matrix
 # Create matrix from c_i 
 C <- matrix(NA, nrow = iterations, ncol = nrow(zoo))
 

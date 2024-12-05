@@ -334,6 +334,28 @@ void clean_var(internal_state & state, const IntegerVector& attrisize) {
     }
 }
 
+
+NumericMatrix subset_data_for_cluster(const NumericMatrix & data, int cluster, const internal_state & state) {
+    /**
+     * @brief Extract data for a specific cluster
+     * @param data Input data matrix
+     * @param cluster Cluster index
+     * @return NumericMatrix containing data for the specified cluster
+     */
+    IntegerVector cluster_indices;
+    for (int i = 0; i < as<NumericVector>(state.c_i).length(); ++i) 
+        if ( as<NumericVector>(state.c_i)[i] == cluster) 
+            cluster_indices.push_back(i);
+        
+    
+    NumericMatrix cluster_data(cluster_indices.length(), data.ncol());
+    for (int i = 0; i < cluster_indices.length(); ++i) {
+        cluster_data(i, _) = data(cluster_indices[i], _);
+    }
+    
+    return cluster_data;
+}
+
 void update_centers(internal_state & state, const aux_data & const_data) {
     /**
      * @brief Update cluster centers
@@ -344,75 +366,17 @@ void update_centers(internal_state & state, const aux_data & const_data) {
 
     IntegerVector clusters = unique_classes(state.c_i);
     int num_cls = state.total_cls;    // Initialize cluster assignments
-    //List prob_centers(state.total_cls);
-    List prob_centers = Center_prob(const_data.data, as<NumericVector>(state.sigma[state.sigma.length() -1]), as<NumericVector>(const_data.attrisize));
-    
-    /*
-     * Calculation of probabilities for each attribute and modality to be chosen
-     */
-    /*for (int c = 0; c < num_cls; ++c){ // for each cluster
-        NumericVector sigma_values = as<NumericVector>(state.sigma[c]);
-        List prob_center(const_data.attrisize.length());
-        for (int i = 0; i < const_data.attrisize.length(); i++) { // for each attribute
-            NumericVector probs(const_data.attrisize[i]);
-            double den=0;
-            double sigma_value = sigma_values[i];
-            
-            for (int a = 0; a < const_data.attrisize[i]; a++) { // for each modality
+    List prob_centers;
 
-                double num = 0, costante = 0;
-                double sumdelta = sum(const_data.data(_, i) == (a + 1));
-                num = (sumdelta - const_data.n)/sigma_value;
-                
-                probs[a] = num;
-            }     
-
-            probs = probs - max(probs); // Proposta loro - gibbs_utility.cpp riga 34
-            probs = exp(probs);
-            den = sum(probs);
-            
-            for(int p = 0; p < probs.length(); p++){
-                probs[p] = probs[p]/den;
-            }     
-            
-            // Store probabilities for this attribute
-            prob_center[i] = probs;
-
-        }
-        prob_centers[c] = prob_center;
-    }*/
-    
-    /*
-     * Sample new cluster centers using the probabilities calculated before
-     */
     NumericVector attr_centers(const_data.attrisize.length());
     List prob_centers_cluster;
-
-    List attri_List = Attributes_List(const_data.data, const_data.data.ncol());
     
+    List attri_List = Attributes_List(const_data.data, const_data.data.ncol());    
     for (int i = 0; i < num_cls; i++) { 
-        state.center[i] = clone(Samp_Center(attri_List, prob_centers, const_data.attrisize.length()));
+        NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, i, state);
+        prob_centers = Center_prob(data_tmp, state.sigma[i], as<NumericVector>(const_data.attrisize));
+        state.center[i] = Samp_Center(attri_List, prob_centers, const_data.attrisize.length());
     }
-    
-    // for each cluster
-    /*
-    for (int i = 0; i < num_cls; i++) {         
-        // for each cluster
-        prob_centers_cluster = as<List>(prob_centers[i]);
-
-        for (int j = 0; j < const_data.attrisize.length(); j++) { 
-            //std::cout << std::endl<<"[DEBUG] - Cluster " << i <<" attribute " << j << std::endl;
-            int attrisize_j = const_data.attrisize[j];
-            
-            NumericVector prob_centers_attribute_j = as<NumericVector>(prob_centers_cluster[j]);
-            std::cout << std::endl << "[DEBUG] - prob_centers_attribute_j: " << prob_centers_attribute_j << std::endl;
-            attr_centers[j] = sample(attrisize_j, 1, true, prob_centers_attribute_j)[0];
-            //std::cout << std::endl << "[DEBUG] - center: " << attr_centers[j] << std::endl;
-        }
-
-        // move to avoid problems with pointers
-        state.center[i] = clone(attr_centers);
-    }*/
 }
 
 void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, const aux_data & const_data) {
