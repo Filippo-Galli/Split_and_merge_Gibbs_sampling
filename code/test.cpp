@@ -260,7 +260,7 @@ int sample_allocation(const int index_i, const aux_data & constant_data,
         }
 
         // probability calculation for existing clusters
-        if (k < unique_classes_without_i.length()) {
+        if (std::find(unique_classes_without_i.begin(), unique_classes_without_i.end(), k) != unique_classes_without_i.end()) {
             // Count instances in the z cluster excluding the current point i
             n_i_z = count_cluster_members(state.c_i, index_i, unique_classes_without_i[k]);
             // Calculate probability
@@ -292,37 +292,31 @@ void clean_var(internal_state & state, const IntegerVector& attrisize) {
 
     // Create a mapping for efficient cluster index lookup
     std::unordered_map<int, int> cls_to_new_index;
-    /*
     for(int i = 0; i < num_existing_cls; ++i) {
-        cls_to_new_index[existing_cls[i]] = i;
-    }
-    */
-
-    int idx_temp = 0;
-    for(int i = 0; i < num_existing_cls; ++i) {
+        int idx_temp = 0;
+        // If the cluster index is less than the number of existing clusters, keep the same index
         if(existing_cls[i] < num_existing_cls){
-            cls_to_new_index[existing_cls[i]] = existing_cls[i];
+                cls_to_new_index[existing_cls[i]] = existing_cls[i];
         }
         else{
             // find the first available index for new clusters
-            while(cls_to_new_index.find(idx_temp) == cls_to_new_index.end()){
+            while(cls_to_new_index.find(idx_temp) != cls_to_new_index.end() && idx_temp < num_existing_cls){
                 idx_temp++;
             }
             
             cls_to_new_index[existing_cls[i]] = idx_temp;
         }
     }
-
+    
     // Preallocate new containers with the correct size
     List new_center(num_existing_cls);
     List new_sigma(num_existing_cls);
 
-    // Efficiently copy centers and sigmas
+    // Check if i is correct or we need cls_to_new_index[existing_cls[i]]
     for(int i = 0; i < num_existing_cls; ++i) {
         new_center[i] = state.center[existing_cls[i]];
         new_sigma[i] = state.sigma[existing_cls[i]];
     }
-
     // Update state with new centers, sigmas, and cluster count
     state.center = std::move(new_center);
     state.sigma = std::move(new_sigma);
@@ -489,8 +483,6 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         if(verbose != 0)
             std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations << std::endl;
 
-        L = unique_classes(state.c_i).length();
-
         // Add latent classes
         for(int i = 0; i < m; i++){
             state.center.push_back(sample_center_1_cluster(const_data.attrisize));
@@ -502,6 +494,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
         // Sample new cluster assignments
         for (int index_i = 0; index_i < const_data.n; index_i++) {
+            L = unique_classes(state.c_i).length();
             IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
             
             // If observation i create a new cluster update m-1 latent cls else m latent cls

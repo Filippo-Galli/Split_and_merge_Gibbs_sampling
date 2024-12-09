@@ -50,8 +50,8 @@ v = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/test.cpp")
 
-L_plurale <- c(7)
-iterations <- 10000
+L_plurale <- c(2, 7, 14)
+iterations <- 25000
 m <- 3
 # Create 3 plot with different starting point
 for(l in L_plurale){
