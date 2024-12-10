@@ -147,9 +147,21 @@ IntegerVector sample_initial_assignment(double K = 4, int n = 10){
 }
 
 int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) {
-   
+    // Add explicit bounds checking
+    if (exclude_index < 0 || exclude_index >= c_i.length()) {
+        Rcpp::warning("Exclude index %d is out of bounds for vector of length %d", 
+                      exclude_index, c_i.length());
+        return 0;
+    }
+    
     int n_i_z = 0;
     for (int i = 0; i < c_i.length(); i++) {
+        // Explicit bounds check in the loop
+        if (i < 0 || i >= c_i.length()) {
+            std::cerr << "Unexpected index " << i <<" in count_cluster_members" << std::endl;
+            break;
+        }
+        
         if (i != exclude_index && c_i[i] == cls) {
             n_i_z++;
         }
@@ -242,8 +254,8 @@ int sample_allocation(const int index_i, const aux_data & constant_data,
 
     // Calculate probabilities
     NumericVector probs(state.total_cls);
-    NumericVector sigma_k;
-    NumericVector center_k;
+    NumericVector sigma_k(constant_data.attrisize.length());
+    NumericVector center_k(constant_data.attrisize.length());
 
     // number of variable in cluster z without i
     int n_i_z = 0;
@@ -260,9 +272,11 @@ int sample_allocation(const int index_i, const aux_data & constant_data,
         }
 
         // probability calculation for existing clusters
-        if (std::find(unique_classes_without_i.begin(), unique_classes_without_i.end(), k) != unique_classes_without_i.end()) {
+        auto it = std::find(unique_classes_without_i.begin(), unique_classes_without_i.end(), k);
+        if (it != unique_classes_without_i.end()) {
+            int unique_index = std::distance(unique_classes_without_i.begin(), it);
             // Count instances in the z cluster excluding the current point i
-            n_i_z = count_cluster_members(state.c_i, index_i, unique_classes_without_i[k]);
+            n_i_z = count_cluster_members(as<IntegerVector>(state.c_i), index_i, unique_classes_without_i[unique_index]);
             // Calculate probability
             probs[k] = n_i_z * std::exp(Hamming) ;
         }
@@ -452,7 +466,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     IntegerVector initial_c_i;
     if(c_i.isNotNull()) {
         Rcpp::Rcout << "Initial cluster assignments provided" << std::endl;
-        initial_c_i = as<IntegerVector>(c_i);
+        initial_c_i = as<IntegerVector>(c_i) - min(as<IntegerVector>(c_i)); // rescale input cluster assignments to start from 0
         state.total_cls = unique_classes(initial_c_i).length();
 
     } else {
