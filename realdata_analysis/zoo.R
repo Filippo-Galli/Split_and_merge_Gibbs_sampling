@@ -49,21 +49,10 @@ u = c(rep(6,12),3,rep(6,3))
 v = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/test.cpp")
-results <- run_markov_chain(data = zoo, 
-                            attrisize = mm, 
-                            gamma = 0.68, 
-                            v = v, 
-                            w = u, 
-                            verbose = 0, 
-                            m = 3, 
-                            iterations = 2, 
-                            L = 7, 
-                            c_i = unlist(groundTruth), 
-                            burnin = 0)
 
 L_plurale <- c(7)
-initial_assignment_bool <- c(TRUE)
-iterations <- 15000
+initial_assignment_bool <- c(TRUE, FALSE)
+iterations <- 25000
 burnin <- 8000
 m <- 3
 # Create 3 plot with different starting point and or not initial assignment
