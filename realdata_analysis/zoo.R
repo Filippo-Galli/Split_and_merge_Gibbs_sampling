@@ -49,63 +49,135 @@ u = c(rep(6,12),3,rep(6,3))
 v = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/test.cpp")
+results <- run_markov_chain(data = zoo, 
+                            attrisize = mm, 
+                            gamma = 0.68, 
+                            v = v, 
+                            w = u, 
+                            verbose = 0, 
+                            m = 3, 
+                            iterations = 2, 
+                            L = 7, 
+                            c_i = unlist(groundTruth), 
+                            burnin = 0)
 
-L_plurale <- c(2, 7, 14)
-iterations <- 25000
+L_plurale <- c(7)
+initial_assignment_bool <- c(TRUE)
+iterations <- 15000
+burnin <- 8000
 m <- 3
-# Create 3 plot with different starting point
-for(l in L_plurale){
-  temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
+# Create 3 plot with different starting point and or not initial assignment
+for(init_ass_bool in initial_assignment_bool){
+  for(l in L_plurale){
+    temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
+    result_name = "result_"
+    if(init_ass_bool){
+      results <- run_markov_chain(data = zoo, 
+                                  attrisize = mm, 
+                                  gamma = 0.68, 
+                                  v = v, 
+                                  w = u, 
+                                  verbose = 0, 
+                                  m = m, 
+                                  iterations = iterations, 
+                                  L = l, 
+                                  c_i = unlist(groundTruth), 
+                                  burnin = burnin)
+      result_name = paste(result_name, "init_ass_", sep="")
+    }
+    else{
+      results <- run_markov_chain(data = zoo, 
+                                  attrisize = mm, 
+                                  gamma = 0.68, 
+                                  v = v, 
+                                  w = u, 
+                                  verbose = 0, 
+                                  m = m, 
+                                  iterations = iterations, 
+                                  L = l, 
+                                  burnin = burnin)
+    }
+    # Save results
+    filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time,".RData", sep = "")
+    save(results, file = filename)
+    print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 
-  results <- run_markov_chain(zoo, mm, 0.68, v, u, 0, m, iterations, l, unlist(groundTruth), burnin = 8000)
-  # Save results
-  filename <- paste("../results/results_", l, "_",m, "_", iterations,"_",temp_time,".RData", sep = "")
-  save(results, file = filename)
-  print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
+    ### First plot - Posterior distribution of the number of clusters
+    # Calculation
+    post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
+    title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
+    df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
+                    rel_freq = as.numeric(post_total_cls))
+    # Create plot
+    p <-ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
+      geom_col() + 
+      labs(
+        x = "Cluster Found",
+        y = "Relative Frequency",
+        title = title
+      ) +
+      theme_minimal() +
+      scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
+    # Save plot
+    save_name = "post_total_cls_"
+    if(init_ass_bool){
+      save_name = paste(save_name, "init_assignment_", sep="")
+    }
+    filename <- paste("../plot/", save_name , l, "_", temp_time,".png", sep = "")
+    ggsave(filename, plot = p)
 
-  ### First plot - Posterior distribution of the number of clusters
-  # Calculation
-  post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
-  title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
-  df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
-                   rel_freq = as.numeric(post_total_cls))
-  # Create plot
-  p <-ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
-    geom_col() + 
-    labs(
-      x = "Cluster Found",
-      y = "Relative Frequency",
-      title = title
-    ) +
-    theme_minimal() +
-    scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
-  # Save plot
-  filename <- paste("../plot/post_total_cls_", l, "_", temp_time,".png", sep = "")
-  ggsave(filename, plot = p)
+    ### Second plot - Trace of number of clusters
+    total_cls_df <- data.frame(
+      Iteration = seq_along(results$total_cls),
+      NumClusters = unlist(results$total_cls)
+    )
 
-  ### Second plot - Trace of number of clusters
-  total_cls_df <- data.frame(
-    Iteration = seq_along(results$total_cls),
-    NumClusters = unlist(results$total_cls)
-  )
+    total_cls_df_long <- total_cls_df %>%
+    pivot_longer(cols = starts_with("NumClusters"), names_to = "variable", values_to = "value")
 
-  total_cls_df_long <- total_cls_df %>%
-  pivot_longer(cols = starts_with("NumClusters"), names_to = "variable", values_to = "value")
+    p <- ggplot(total_cls_df_long, aes(x = Iteration, y = value)) +
+      geom_line() +
+      labs(
+        x = "Iteration", 
+        y = "Number of clusters", 
+        title = paste("Trace of Number of Clusters starting from L =", l)
+      ) +
+      theme_minimal()
 
-  p <- ggplot(total_cls_df_long, aes(x = Iteration, y = value)) +
-    geom_line() +
-    labs(
-      x = "Iteration", 
-      y = "Number of clusters", 
-      title = paste("Trace of Number of Clusters starting from L =", l)
-    ) +
-    theme_minimal()
+    # Save plot
+    save_name = "trace_cls_starting_point_"
+    if(init_ass_bool){
+      save_name = paste(save_name, "init_assignment_", sep="")
+    }
+    filename <- paste("../plot/", save_name, l, "_", temp_time, ".png", sep = "")
+    ggsave(filename, plot = p)
 
-  # Save plot
-  filename <- paste("../plot/trace_cls_starting_point_", l, "_", temp_time, ".png", sep = "")
-  ggsave(filename, plot = p)
+    ### Third plot - Plot the log-likelihood
+    log_likelihood_df <- data.frame(
+      Iteration = seq_along(results$loglikelihood),
+      LogLikelihood = results$loglikelihood
+    )
 
+    p <- ggplot(log_likelihood_df, aes(x = Iteration, y = LogLikelihood)) +
+      geom_line() +
+      labs(
+        x = "Iteration",
+        y = "Log-Likelihood",
+        title = "Log-Likelihood Trace"
+      ) +
+      theme_minimal()
+
+    # Save plot
+    save_name = "loglikelihood_"
+    if(init_ass_bool){
+      save_name = paste(save_name, "init_assignment_", sep="")
+    }
+    filename <- paste("../plot/", save_name, l, "_", temp_time, ".png", sep = "")
+    ggsave(filename, plot = p)
+
+  }
 }
+
 
 ### Trace of c_i history for specific observation
 choosen_idx <- 100
@@ -124,21 +196,6 @@ ggplot(c_i_df, aes(x = Iteration, y = ClusterAssignment)) +
     x = "Iteration", 
     y = "Cluster Assignment", 
     title = paste("Trace of c_i History for Observation ", choosen_idx)
-  ) +
-  theme_minimal()
-
-### Plot the log-likelihood
-log_likelihood_df <- data.frame(
-  Iteration = seq_along(results$loglikelihood),
-  LogLikelihood = results$loglikelihood
-)
-
-ggplot(log_likelihood_df, aes(x = Iteration, y = LogLikelihood)) +
-  geom_line() +
-  labs(
-    x = "Iteration",
-    y = "Log-Likelihood",
-    title = "Log-Likelihood Trace"
   ) +
   theme_minimal()
 
