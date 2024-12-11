@@ -50,10 +50,10 @@ v = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/test.cpp")
 
-L_plurale <- c(7)
+L_plurale <- c(3, 7, 11)
 initial_assignment_bool <- c(TRUE, FALSE)
-iterations <- 25000
-burnin <- 8000
+iterations <- 30000
+burnin <- 5000
 m <- 3
 # Create 3 plot with different starting point and or not initial assignment
 for(init_ass_bool in initial_assignment_bool){
@@ -189,19 +189,30 @@ ggplot(c_i_df, aes(x = Iteration, y = ClusterAssignment)) +
   theme_minimal()
 
 ### Posterior similarity matrix
-# Create matrix from c_i 
-C <- matrix(NA, nrow = iterations, ncol = nrow(zoo))
+results_dir <- file.path(getwd(), "../results")
+dir.exists(results_dir)
+print(normalizePath(results_dir))
+rdata_files <- list.files(results_dir, full.names = TRUE)
 
-for(i in 1:iterations){
-  C[i, ] <- unlist(results$c_i[i]) + 1
+for (file in rdata_files) {
+  # Print file name 
+  print(file)
+  load(file)
+
+  # Create matrix from c_i 
+  C <- matrix(NA, nrow = iterations, ncol = nrow(zoo))
+
+  for(i in 1:iterations){
+    C[i, ] <- unlist(results$c_i[i]) + 1
+  }
+
+  psm = comp.psm(C)
+  ## estimated clustering
+  VI = minVI(psm)
+  table(VI$cl) 
+  arandi(VI$cl, groundTruth)
+  myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
 }
-
-psm = comp.psm(C)
-## estimated clustering
-VI = minVI(psm)
-table(VI$cl) 
-arandi(VI$cl, groundTruth)
-myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
 
 #=========================================================================================
 # Gibbs sampler HMM
