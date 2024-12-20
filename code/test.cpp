@@ -52,8 +52,9 @@ struct aux_data{
 void print_internal_state(const internal_state& state, int interest = -1) {
     /**
      * @brief Print internal state of the MCMC algorithm
+     * @note Interest values <-> -1: print all, 1: print cluster assignments, 2: print cluster centers, 3: print cluster dispersions
      * @param state Internal state of the MCMC algorithm
-     * @param interest Index of what print (default: -1 <-> print all). 1: print cluster assignments, 2: print cluster centers, 3: print cluster dispersions
+     * @param interest Index of what print (default: -1).
      * @details This function prints the current cluster assignments, cluster centers, and cluster dispersions
      */
     if(interest == 1 || interest == -1){
@@ -186,7 +187,7 @@ NumericVector sample_center_1_cluster(const IntegerVector & attrisize) {
     return center;
 }
 
-List sample_centers(const int number_cls, const IntegerVector & attrisize) {
+void sample_centers(List & center, const int number_cls, const IntegerVector & attrisize) {
     /**
      * @brief Sample initial cluster centers
      * @param number_cls Number of clusters
@@ -196,12 +197,10 @@ List sample_centers(const int number_cls, const IntegerVector & attrisize) {
      * @note We have some perfomance issues with this function? Can we change this using NumericMatrix?
      */
 
-    List centers(number_cls);
-
+    center.resize(number_cls);
     for (int c = 0; c < number_cls; c++) {
-        centers[c] = sample_center_1_cluster(attrisize);
-    }   
-    return centers;
+        center[c] = sample_center_1_cluster(attrisize);
+    }
 }
 
 NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize, const NumericVector & v, const NumericVector & w){
@@ -223,24 +222,21 @@ NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize, const Nume
     return sigma;
 }
 
-List sample_sigmas(const int number_cls, const aux_data & const_data) {
+void sample_sigmas(List & sigma, const int number_cls, const aux_data & const_data) {
     /**
      * @brief Sample initial cluster dispersions (sigma)
      * @param attrisize Vector of attribute sizes
      * @param number_cls Number of clusters
      * @return List of cluster dispersions for each attribute
      */
-    List sigma(number_cls);
+    sigma.resize(number_cls);
 
     for (int i = 0; i < number_cls; i++) {
         sigma[i] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
     } 
-
-    return sigma;
 }
 
-
-void clean_var(internal_state & state, const IntegerVector& attrisize, const IntegerVector& existing_cls, 
+void clean_var_1(internal_state & state, const IntegerVector& attrisize, const IntegerVector& existing_cls, 
                 List & centers, List & sigmas, int & total_cls, IntegerVector & c_i) {
     // Efficiently find unique existing clusters
     int num_existing_cls = existing_cls.length();
@@ -287,112 +283,20 @@ void clean_var(internal_state & state, const IntegerVector& attrisize, const Int
     }
 }
 
-void sample_allocation(const int index_i, const aux_data & constant_data, 
-                     internal_state & state, const int m, const IntegerVector & unique_classes_without_i) {
+void clean_var(internal_state & updated_state, const internal_state & current_state, const IntegerVector& existing_cls, const IntegerVector& attrisize) {
     /**
-     * @brief Sample new cluster assignment for a single data point
-     * @param index_i Index of the data point
-     * @param constant_data Auxiliary data for the MCMC algorithm
-     * @param state Internal state of the MCMC algorithm
-     * @param m Number of latent classes
-     * @return New cluster assignment for the data point
+     * @brief Clean up internal state variables
+     * @param updated_state Updated internal state
+     * @param current_state Current internal state
+     * @param existing_cls Existing cluster indices
+     * @param attrisize Vector of attribute sizes
+     * @details This function cleans up the internal state variables by removing unused clusters
      */
-    // read data point
-    NumericVector x_i = constant_data.data(index_i, _);
 
-    IntegerVector uni_clas = unique_classes(state.c_i);
-    int k_minus = unique_classes_without_i.length();
-    int h = k_minus + m; 
-    int m_temp = uni_clas.length() == k_minus ? m : m - 1;
-    NumericVector temp_center = as<List>(state.center)[state.c_i[index_i]];
-    NumericVector temp_sigma = as<List>(state.sigma)[state.c_i[index_i]];
-
-    
-    // ------------------------------- Ri assegnamento labels --------------------------------
-    IntegerVector c_i = clone(state.c_i);
-    List centers = clone(state.center);
-    List sigmas = clone(state.sigma);
-    int total_cls = state.total_cls;
-
-    clean_var(state, constant_data.attrisize, unique_classes_without_i, centers, sigmas, total_cls, c_i);
-
-    // ------------------------------- Add latent classes -------------------------------
-    if(uni_clas.length() != k_minus){
-        centers.push_back(temp_center);
-        sigmas.push_back(temp_sigma);
-    }
-
-    for(int i = 0; i < m_temp; i++){
-        centers.push_back(sample_center_1_cluster(constant_data.attrisize));
-        sigmas.push_back(sample_sigma_1_cluster(constant_data.attrisize, constant_data.v, constant_data.w));
-    } 
-    // update total number of clusters
-    total_cls = centers.length();
-    
-    // Calculate probabilities
-    NumericVector probs(total_cls);
-    NumericVector sigma_k(constant_data.attrisize.length());
-    NumericVector center_k(constant_data.attrisize.length());
-    
-    // number of variable in cluster z without i
-    int n_i_z = 0;
-
-    // prob of existing clusters
-    for (int k = 0; k < k_minus; k++) {
-        // Density calculation, in Neal paper is the F function
-        double Hamming = 0;
-
-        sigma_k = sigmas[k]; // prendo le sigma del cluster k
-        center_k = centers[k]; // prendo i centri del cluster k
-
-        for (int j = 0; j < x_i.length(); j++) {
-            Hamming += dhamming(x_i[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true);
-        }
-
-        // Count instances in the z cluster excluding the current point i
-        if(k < unique_classes_without_i.length())
-            n_i_z = count_cluster_members(c_i, index_i, unique_classes_without_i[k]);
-        // Calculate probability
-        if(k < probs.length())
-            if (n_i_z == 0) {
-                probs[k] = 0;
-            } else {
-                probs[k] = n_i_z * std::exp(Hamming);
-            }
-    }
-
-    // prob of latent clusters
-    for(int k = k_minus; k < total_cls; k++){
-        sigma_k = sigmas[k]; // prendo le sigma del cluster k
-        center_k = centers[k]; // prendo i centri del cluster k
-
-        double Hamming = 0;
-        for (int j = 0; j < x_i.length(); j++) {
-            Hamming += dhamming(x_i[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true);
-        }
-
-        // probability calculation for latent clusters 
-        probs[k] = constant_data.gamma/m * std::exp(Hamming);    
-    }
-
-    // Create the vector from 0 to num_cls 
-    NumericVector cls(total_cls);
-    for (int i = 0; i < total_cls; ++i) {
-        cls[i] = i;
-    }
-
-    // Normalize probabilities
-    probs = probs / sum(probs);    
-
-    // Sample new cluster assignment using probabilities calculated before
-    c_i[index_i] = sample(cls, 1, true, probs)[0];
-
-    // ------------------------------- Ri assegnamento labels --------------------------------
     // Efficiently find unique existing clusters
-    IntegerVector existing_cls = unique_classes(c_i);
     int num_existing_cls = existing_cls.length();
 
-    // Create a mapping for efficient cluster index lookup
+    // Create a mapping of the existing clusters
     std::unordered_map<int, int> cls_to_new_index;
     for(int i = 0; i < num_existing_cls; ++i) {
         int idx_temp = 0;
@@ -416,27 +320,123 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
 
     // Check if i is correct or we need cls_to_new_index[existing_cls[i]]
     for(int i = 0; i < num_existing_cls; ++i) {
-        new_center[i] = centers[existing_cls[i]];
-        new_sigma[i] = sigmas[existing_cls[i]];
+        new_center[i] = current_state.center[existing_cls[i]];
+        new_sigma[i] = current_state.sigma[existing_cls[i]];
     }
 
     // Update state with new centers, sigmas, and cluster count
-    centers = std::move(new_center);
-    sigmas = std::move(new_sigma);
-    total_cls = num_existing_cls;
+    updated_state.center = std::move(new_center);
+    updated_state.sigma = std::move(new_sigma);
+    updated_state.total_cls = num_existing_cls;
 
     // Vectorized cluster index update using the mapping
-    for(int i = 0; i < c_i.length(); i++) {
-        auto it = cls_to_new_index.find(c_i[i]);
+    for(int i = 0; i < current_state.c_i.length(); i++) {
+        auto it = cls_to_new_index.find(current_state.c_i[i]);
         if(it != cls_to_new_index.end()) {
-            c_i[i] = it->second;
+            updated_state.c_i[i] = it->second;
         }
     }
+}
 
-    state.center = std::move(centers);
-    state.sigma = std::move(sigmas);
-    state.c_i = std::move(c_i); 
-    state.total_cls = total_cls;
+void sample_allocation(const int index_i, const aux_data & constant_data, 
+                     internal_state & state, const int m, const IntegerVector & unique_classes_without_i) {
+    /**
+     * @brief Sample new cluster assignment for a single data point
+     * @param index_i Index of the data point
+     * @param constant_data Auxiliary data for the MCMC algorithm
+     * @param state Internal state of the MCMC algorithm
+     * @param m Number of latent classes
+     * @return New cluster assignment for the data point
+     */
+    // read data point
+    NumericVector x_i = constant_data.data(index_i, _);
+
+    IntegerVector uni_clas = unique_classes(state.c_i);
+    int k_minus = unique_classes_without_i.length();
+    int h = k_minus + m; 
+    int m_temp = uni_clas.length() == k_minus ? m : m - 1;
+    NumericVector temp_center = as<List>(state.center)[state.c_i[index_i]];
+    NumericVector temp_sigma = as<List>(state.sigma)[state.c_i[index_i]];
+
+    
+    // ------------------------------- Ri assegnamento labels --------------------------------
+    internal_state state_temp = {IntegerVector(state.c_i.length()), List(state.center.length()), List(state.sigma.length()), 0};
+    clean_var(state_temp, state, unique_classes_without_i, constant_data.attrisize);
+
+    // ------------------------------- Add latent classes -------------------------------
+    if(uni_clas.length() != k_minus){
+        state_temp.center.push_back(temp_center);
+        state_temp.sigma.push_back(temp_sigma);
+    }
+
+    for(int i = 0; i < m_temp; i++){
+        state_temp.center.push_back(sample_center_1_cluster(constant_data.attrisize));
+        state_temp.sigma.push_back(sample_sigma_1_cluster(constant_data.attrisize, constant_data.v, constant_data.w));
+    } 
+    // update total number of clusters
+    state_temp.total_cls = state_temp.center.length();
+    
+    // Calculate probabilities
+    NumericVector probs(state_temp.total_cls);
+    NumericVector sigma_k(constant_data.attrisize.length());
+    NumericVector center_k(constant_data.attrisize.length());
+    
+    // number of variable in cluster z without i
+    int n_i_z = 0;
+
+    // prob of existing clusters
+    for (int k = 0; k < k_minus; k++) {
+        // Density calculation, in Neal paper is the F function
+        double Hamming = 0;
+
+        sigma_k = state_temp.sigma[k]; // prendo le sigma del cluster k
+        center_k = state_temp.center[k]; // prendo i centri del cluster k
+
+        for (int j = 0; j < x_i.length(); j++) {
+            Hamming += dhamming(x_i[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true);
+        }
+
+        // Count instances in the z cluster excluding the current point i
+        if(k < unique_classes_without_i.length())
+            n_i_z = count_cluster_members(state_temp.c_i, index_i, unique_classes_without_i[k]);
+        // Calculate probability
+        if(k < probs.length())
+            if (n_i_z == 0) {
+                probs[k] = 0;
+            } else {
+                probs[k] = n_i_z * std::exp(Hamming);
+            }
+    }
+
+    // prob of latent clusters
+    for(int k = k_minus; k < state_temp.total_cls; k++){
+        sigma_k = state_temp.sigma[k]; // prendo le sigma del cluster k
+        center_k = state_temp.center[k]; // prendo i centri del cluster k
+
+        double Hamming = 0;
+        for (int j = 0; j < x_i.length(); j++) {
+            Hamming += dhamming(x_i[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true);
+        }
+
+        // probability calculation for latent clusters 
+        probs[k] = constant_data.gamma/m * std::exp(Hamming);    
+    }
+
+    // Create the vector from 0 to num_cls 
+    NumericVector cls(state_temp.total_cls);
+    for (int i = 0; i < state_temp.total_cls; ++i) {
+        cls[i] = i;
+    }
+
+    // Normalize probabilities
+    probs = probs / sum(probs);    
+
+    // Sample new cluster assignment using probabilities calculated before
+    state_temp.c_i[index_i] = sample(cls, 1, true, probs)[0];
+
+    // ------------------------------- Ri assegnamento labels --------------------------------
+
+    clean_var(state, state_temp, unique_classes(state_temp.c_i), constant_data.attrisize);
 }
 
 NumericMatrix subset_data_for_cluster(const NumericMatrix & data, int cluster, const internal_state & state) {
@@ -518,23 +518,51 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
 }
 
 double compute_loglikelihood(internal_state & state, aux_data & const_data) {
+    /**
+     * @brief Compute log-likelihood of the current state
+     * @param state Internal state of the MCMC algorithm
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @return Log-likelihood of the current state
+     */
+
     double loglikelihood = 0.0;
-    
-    // Compute likelihood for each observation
+
+    // Pre-compute Hamming distance matrices
+    std::vector<NumericMatrix> hamming_distances(state.total_cls);
+    for (int k = 0; k < state.total_cls; k++) {
+        NumericVector center = as<NumericVector>(state.center[k]);
+        NumericVector sigma = as<NumericVector>(state.sigma[k]);
+        hamming_distances[k] = dhamming_matrix(const_data.data, center, sigma, const_data.attrisize);
+    }
+
+    // Compute loglikelihood using pre-computed Hamming distances
     for (int i = 0; i < const_data.n; i++) {
         int cluster = state.c_i[i];
-        NumericVector center = as<NumericVector>(state.center[cluster]);
-        NumericVector sigma = as<NumericVector>(state.sigma[cluster]);
-        
-        double Hamming = 0.0;
-        for (int j = 0; j < const_data.attrisize.length(); j++) {
-            Hamming += dhamming(const_data.data(i, j), center[j], sigma[j], const_data.attrisize[j], true);
-        }
-
-        loglikelihood += Hamming;
+        loglikelihood += hamming_distances[cluster](i, _).sum();
     }
-    
+
     return loglikelihood;
+}
+
+NumericMatrix dhamming_matrix(const NumericMatrix & data, const NumericVector & center, const NumericVector & sigma, const IntegerVector & attrisize) {
+    /**
+     * @brief Compute Hamming distance matrix
+     * @param data Input data matrix
+     * @param center Cluster center
+     * @param sigma Cluster dispersion
+     * @param attrisize Vector of attribute sizes
+     * @return NumericMatrix containing Hamming distances
+     */
+    int n = data.nrow();
+    int p = data.ncol();
+    NumericMatrix hamming_dist(n, p);
+
+    for (int j = 0; j < p; j++) {
+        NumericVector col = data(_, j);
+        hamming_dist(_, j) = dhamming(col, center[j], sigma[j], attrisize[j], false);
+    }
+
+    return hamming_dist;
 }
 
 // [[Rcpp::export]]
@@ -565,12 +593,12 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     } else {
         initial_c_i = sample_initial_assignment(L, const_data.n);
     }
-    state.c_i = clone(initial_c_i);
+    state.c_i = std::move(initial_c_i);
     
     // Initialize centers
-    state.center = sample_centers(state.total_cls, const_data.attrisize);
+    sample_centers(state.center, state.total_cls, const_data.attrisize);
     // Initialize sigma
-    state.sigma = sample_sigmas(state.total_cls, const_data);
+    sample_sigmas(state.sigma, state.total_cls, const_data);
 
     if(verbose == 2 or verbose == 1){
         print_internal_state(state);

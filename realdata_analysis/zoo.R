@@ -50,143 +50,34 @@ v = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/test.cpp")
 
-L_plurale <- c(3, 7, 11)
-initial_assignment_bool <- c(TRUE, FALSE)
-iterations <- 30000
+L_plurale <- c(7)
+initial_assignment_bool <- c(TRUE)
+iterations <- 20000
 burnin <- 5000
 m <- 3
-# Create 3 plot with different starting point and or not initial assignment
-for(init_ass_bool in initial_assignment_bool){
-  for(l in L_plurale){
-    temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
-    result_name = "result_"
-    if(init_ass_bool){
-      results <- run_markov_chain(data = zoo, 
-                                  attrisize = mm, 
-                                  gamma = 0.68, 
-                                  v = v, 
-                                  w = u, 
-                                  verbose = 0, 
-                                  m = m, 
-                                  iterations = iterations, 
-                                  L = l, 
-                                  c_i = unlist(groundTruth), 
-                                  burnin = burnin)
-      result_name = paste(result_name, "init_ass_", sep="")
-    }
-    else{
-      results <- run_markov_chain(data = zoo, 
-                                  attrisize = mm, 
-                                  gamma = 0.68, 
-                                  v = v, 
-                                  w = u, 
-                                  verbose = 0, 
-                                  m = m, 
-                                  iterations = iterations, 
-                                  L = l, 
-                                  burnin = burnin)
-    }
-    # Save results
-    filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time,".RData", sep = "")
-    save(results, file = filename)
-    print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
+for(l in L_plurale){
+  temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
+  result_name = "result_"
 
-    ### First plot - Posterior distribution of the number of clusters
-    # Calculation
-    post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
-    title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
-    df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
-                    rel_freq = as.numeric(post_total_cls))
-    # Create plot
-    p <-ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
-      geom_col() + 
-      labs(
-        x = "Cluster Found",
-        y = "Relative Frequency",
-        title = title
-      ) +
-      theme_minimal() +
-      scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
-    # Save plot
-    save_name = "post_total_cls_"
-    if(init_ass_bool){
-      save_name = paste(save_name, "init_assignment_", sep="")
-    }
-    filename <- paste("../plot/", save_name , l, "_", temp_time,".png", sep = "")
-    ggsave(filename, plot = p)
+  results <- run_markov_chain(data = zoo, 
+                              attrisize = mm, 
+                              gamma = 0.68, 
+                              v = v, 
+                              w = u, 
+                              verbose = 0, 
+                              m = m, 
+                              iterations = iterations, 
+                              L = l, 
+                              c_i = unlist(groundTruth), 
+                              burnin = burnin)
+  result_name = paste(result_name, "init_ass_", sep="")
 
-    ### Second plot - Trace of number of clusters
-    total_cls_df <- data.frame(
-      Iteration = seq_along(results$total_cls),
-      NumClusters = unlist(results$total_cls)
-    )
+  # Save results
+  filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time,".RData", sep = "")
+  save(results, file = filename)
+  print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 
-    total_cls_df_long <- total_cls_df %>%
-    pivot_longer(cols = starts_with("NumClusters"), names_to = "variable", values_to = "value")
-
-    p <- ggplot(total_cls_df_long, aes(x = Iteration, y = value)) +
-      geom_line() +
-      labs(
-        x = "Iteration", 
-        y = "Number of clusters", 
-        title = paste("Trace of Number of Clusters starting from L =", l)
-      ) +
-      theme_minimal()
-
-    # Save plot
-    save_name = "trace_cls_starting_point_"
-    if(init_ass_bool){
-      save_name = paste(save_name, "init_assignment_", sep="")
-    }
-    filename <- paste("../plot/", save_name, l, "_", temp_time, ".png", sep = "")
-    ggsave(filename, plot = p)
-
-    ### Third plot - Plot the log-likelihood
-    log_likelihood_df <- data.frame(
-      Iteration = seq_along(results$loglikelihood),
-      LogLikelihood = results$loglikelihood
-    )
-
-    p <- ggplot(log_likelihood_df, aes(x = Iteration, y = LogLikelihood)) +
-      geom_line() +
-      labs(
-        x = "Iteration",
-        y = "Log-Likelihood",
-        title = "Log-Likelihood Trace"
-      ) +
-      theme_minimal()
-
-    # Save plot
-    save_name = "loglikelihood_"
-    if(init_ass_bool){
-      save_name = paste(save_name, "init_assignment_", sep="")
-    }
-    filename <- paste("../plot/", save_name, l, "_", temp_time, ".png", sep = "")
-    ggsave(filename, plot = p)
-
-  }
 }
-
-
-### Trace of c_i history for specific observation
-choosen_idx <- 100
-temp <- sapply(seq_along(results$c_i), function(i) {
-  unlist(results$c_i[[i]])[choosen_idx]
-})
-
-c_i_df <- data.frame(
-  Iteration = seq_along(temp),
-  ClusterAssignment = temp
-)
-
-ggplot(c_i_df, aes(x = Iteration, y = ClusterAssignment)) +
-  geom_line() +
-  labs(
-    x = "Iteration", 
-    y = "Cluster Assignment", 
-    title = paste("Trace of c_i History for Observation ", choosen_idx)
-  ) +
-  theme_minimal()
 
 ### Posterior similarity matrix
 results_dir <- file.path(getwd(), "../results")
@@ -194,22 +85,92 @@ dir.exists(results_dir)
 print(normalizePath(results_dir))
 rdata_files <- list.files(results_dir, full.names = TRUE)
 
+dev.off()  # Close any open graphic devices
+graphics.off()  # Close all graphic devices
+
 for (file in rdata_files) {
   # Print file name 
   print(file)
   load(file)
 
-  # Create matrix from c_i 
-  C <- matrix(NA, nrow = iterations, ncol = nrow(zoo))
+  ### First plot - Posterior distribution of the number of clusters
+  # Calculation
+  post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
+  title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
+  df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
+                  rel_freq = as.numeric(post_total_cls))
+  # Create plot
+  p1 <- ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
+    geom_col() + 
+    labs(
+      x = "Cluster Found",
+      y = "Relative Frequency",
+      title = title
+    ) +
+    theme_minimal() +
+    scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
+  print(p1)
 
-  for(i in 1:iterations){
-    C[i, ] <- unlist(results$c_i[i]) + 1
+
+  ### Second plot - Trace of number of clusters
+  total_cls_df <- data.frame(
+    Iteration = seq_along(results$total_cls),
+    NumClusters = unlist(results$total_cls)
+  )
+
+  total_cls_df_long <- total_cls_df %>%
+  pivot_longer(cols = starts_with("NumClusters"), names_to = "variable", values_to = "value")
+
+  p2 <- ggplot(total_cls_df_long, aes(x = Iteration, y = value)) +
+    geom_line() +
+    labs(
+      x = "Iteration", 
+      y = "Number of clusters", 
+      title = paste("Trace of Number of Clusters starting from L =", l)
+    ) +
+    theme_minimal()
+  print(p2)
+
+  ### Third plot - Plot the log-likelihood
+  log_likelihood_df <- data.frame(
+    Iteration = seq_along(results$loglikelihood),
+    LogLikelihood = results$loglikelihood
+  )
+
+  p3 <- ggplot(log_likelihood_df, aes(x = Iteration, y = LogLikelihood)) +
+    geom_line() +
+    labs(
+      x = "Iteration",
+      y = "Log-Likelihood",
+      title = "Log-Likelihood Trace"
+    ) +
+    theme_minimal()
+  print(p3)
+
+  ### Fourth plot - Posterior similarity matrix
+  # Vectorized approach to create the matrix
+  C <- matrix(unlist(lapply(results$c_i, function(x) x + 1)), 
+            nrow = iterations, 
+            ncol = nrow(zoo), 
+            byrow = TRUE)
+
+  required_packages <- c("spam", "fields", "viridisLite")
+  for (pkg in required_packages) {
+    if (!require(pkg, character.only = TRUE)) {
+      install.packages(pkg)
+      library(pkg, character.only = TRUE)
+    }
   }
 
   psm = comp.psm(C)
   ## estimated clustering
   VI = minVI(psm)
-  table(VI$cl) 
+
+    # More informative output
+  cat("Cluster Sizes:\n")
+  print(table(VI$cl))
+
+  cat("\nAdjusted Rand Index:", arandi(VI$cl, groundTruth), "\n")
   arandi(VI$cl, groundTruth)
   myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
 }
