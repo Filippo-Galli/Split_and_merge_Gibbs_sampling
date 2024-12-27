@@ -585,7 +585,10 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, const_data.n - 1);
 	int obs_1_idx = dis(gen);
-	int obs_2_idx = dis(gen);
+	int obs_2_idx;
+	do {
+    		obs_2_idx = dis(gen);
+	} while (obs_2_idx == obs_1_idx);
 	
 	// --------------- Step 2 ---------------
 	// Create S the set of idx of obs in the same cluster of obs_1 or obs_2
@@ -617,7 +620,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
         int lat_cls = unique_classes(state.c_i).length(); 
 		// set the allocation of obs_1_idx to a latent cluster
 		c_L_split[obs_1_idx] = lat_cls;
-	}
+	
 	
 	// randomly allocate with equal probs data in S between cls-1 and cls-2
 	for(int datum = 0; datum < S.length(); ++datum){
@@ -642,12 +645,12 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
 		// update both cls new center and sigma 
 		update_centers(state_split, const_data);
 		update_sigma(state_split.sigma, state_split.center, state_split.c_i, const_data);
-	
+	}
 	// ----- gamma merge popolation -----
 	if(c_i[obs_1_idx] != c_i[obs_2_idx]){
 		// set the allocation of obs_1_idx equal to the cls of obs_2 (c_j)
 		c_L_merge[obs_1_idx] = c_i[obs_2_idx];
-	}
+	
 	
 	// Allocate all the data in S to the cls of obs_2_idx
 	for(int datum = 0; datum < S.length(); ++datum){
@@ -669,7 +672,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
 		// update only merge cls center and sigma 
 		update_centers(state_merge, const_data);
 		update_sigma(state_merge.sigma, state_merge.center, state_merge.c_i, const_data);
-	
+	}
 	// --------------- Step 4&5 ---------------
 	// variable to store prob
 	q = 1
