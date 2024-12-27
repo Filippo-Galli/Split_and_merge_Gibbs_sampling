@@ -668,7 +668,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
     internal_state state_merge = {c_L_merge, center_L_merge, sigma_L_merge, unique_classes(c_L_merge).length()};
 	
 	// Intermediate restricted Gibbs Sampler on c_L_split
-	for(int iter = 0; iter < t; ++iter )
+	for(int iter = 0; iter < r; ++iter )
 		// update only merge cls center and sigma 
 		update_centers(state_merge, const_data);
 		update_sigma(state_merge.sigma, state_merge.center, state_merge.c_i, const_data);
@@ -712,7 +712,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
 	
 	// ----- (c) - Metropolis-Hastings step -----
 	// sample if accept or not the MC state stored in c_star
-    if(sample(acpt_ration)){
+    if(sample(acpt_ratio)){
         state = state_star;
     }
 
