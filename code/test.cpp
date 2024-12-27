@@ -518,11 +518,201 @@ NumericMatrix dhamming_matrix(const NumericMatrix & data, const NumericVector & 
     return hamming_dist;
 }
 
-void split_and_merge(internal_state & state, aux_data & const_data) {
+void restricted_gibbs_sampler(internal_state & state, int idx1, int idx2, std::vector<int> & S) {
+    /**
+     * @brief Restricted Gibbs Sampler between the cluster of two observations
+     * @param state Internal state of the MCMC algorithm
+     * @param idx1 Index of the first chosen observation
+     * @param idx2 Index of the second chosen observation
+     * @param S Vector of indices of observations in the same cluster of idx1 or idx2
+     */
+
+    // Create a vector of unique classes
+    IntegerVector unique_cls = unique_classes(state.c_i);
+    int num_cls = unique_cls.length();
+
+    // Extract cluster of the first observation
+    int cls1 = state.c_i[idx1];
+    NumericVector center1 = as<NumericVector>(state.center[cls1]);
+    NumericVector sigma1 = as<NumericVector>(state.sigma[cls1]);
+
+    // Extract cluster of the second observation
+    int cls2 = state.c_i[idx2];
+    NumericVector center2 = as<NumericVector>(state.center[cls2]);
+    NumericVector sigma2 = as<NumericVector>(state.sigma[cls2]);
+
+    // Update cluster assignments for each observation in S
+    for (int i = 0; i < S.size(); i++) {
+        int obs_idx = S[i];
+        NumericVector x_i = state.data(obs_idx, _);
+
+        // Calculate probabilities for the two clusters
+        NumericVector probs(2);
+        for (int k = 0; k < 2; k++) {
+            if(k == 0){
+                NumericVector center_k = center1;
+                NumericVector sigma_k = sigma1;
+            } else {
+                NumericVector center_k = center2;
+                NumericVector sigma_k = sigma2;
+            }
+
+            double Hamming = 0;
+            for (int j = 0; j < x_i.length(); j++) {
+                Hamming += dhamming(x_i[j], center_k[j], sigma_k[j], state.attrisize[j], true);
+            }
+
+            probs[k] = std::exp(Hamming);
+        }
+
+        // Normalize probabilities
+        probs = probs / sum(probs);
+
+        // Sample new cluster assignment between the two clusters of idx1 and idx2
+        state.c_i[obs_idx] = sample(IntegerVector::create(cls1, cls2), 1, true, probs)[0];
+    }
+}
+
+void split_and_merge(internal_state & state, aux_data & const_data, int t = 100, int r = 100) {
     /**
      * @brief Split and merge step
      * @details This function implements the split and merge step of the MCMC algorithm
      */
+
+    // --------------- Step 1 ---------------
+	// choose 2 observation random from the data
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, const_data.n - 1);
+	int obs_1_idx = dis(gen);
+	int obs_2_idx = dis(gen);
+	
+	// --------------- Step 2 ---------------
+	// Create S the set of idx of obs in the same cluster of obs_1 or obs_2
+	// REMIND: obs_1 and obs_2 aren't in S
+	std::vector<int> S;
+    for(int i = 0; i < const_data.n; ++i){
+        // skip obs_1 and obs_2
+        if(i == obs_1_idx || i == obs_2_idx)
+            continue;
+
+        if(state.c_i[i] == state.c_i[obs_1_idx] || state.c_i[i] == state.c_i[obs_2_idx]){
+            S.push_back(i);
+        }
+    }
+	
+	// --------------- Step 3 ---------------
+	// gamma split
+	IntegerVector c_L_split(state.c_i);
+	List center_L_split = clone(state.center);
+	List sigma_L_split = clone(state.sigma);
+	
+	// gamma merge	
+	IntegerVector c_L_merge(state.c_i);
+	List center_L_merge = clone(state.center);
+	List sigma_L_merge = clone(state.sigma);
+	
+	// ----- gamma split popolation -----
+	if(state.c_i[obs_1_idx] == state.c_i[obs_2_idx]){
+        int lat_cls = unique_classes(state.c_i).length(); 
+		// set the allocation of obs_1_idx to a latent cluster
+		c_L_split[obs_1_idx] = lat_cls;
+	}
+	
+	// randomly allocate with equal probs data in S between cls-1 and cls-2
+	for(int datum = 0; datum < S.length(); ++datum){
+		// assignment with equal probs
+		c_L_split[S[datum]] = sample(2, 1, true)[0] == 1 ? c_L_split[obs_1_idx] : c_L_split[obs_2_idx];
+	}
+	
+	// Draw a new value for the centers
+	center_L_split[c_L_split[obs_1_idx]] = sample_center_1_cluster(const_data.attrisize);
+	center_L_split[c_L_split[obs_2_idx]] = sample_center_1_cluster(const_data.attrisize);
+	
+	// draw a new value for the sigma
+	sigma_L_split[c_L_split[obs_1_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+	sigma_L_split[c_L_split[obs_2_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+	
+    // aux state for the split
+    internal_state state_split = {c_L_split, center_L_split, sigma_L_split, unique_classes(c_L_split).length()};
+
+	// Intermediate restricted Gibbs Sampler on c_L_split
+	for(int iter = 0; iter < t; ++iter )
+		restricted_gibbs_sampler(state_split, obs_1_idx, obs_2_idx, S);
+		// update both cls new center and sigma 
+		update_centers(state_split, const_data);
+		update_sigma(state_split.sigma, state_split.center, state_split.c_i, const_data);
+	
+	// ----- gamma merge popolation -----
+	if(c_i[obs_1_idx] != c_i[obs_2_idx]){
+		// set the allocation of obs_1_idx equal to the cls of obs_2 (c_j)
+		c_L_merge[obs_1_idx] = c_i[obs_2_idx];
+	}
+	
+	// Allocate all the data in S to the cls of obs_2_idx
+	for(int datum = 0; datum < S.length(); ++datum){
+		// assignment with equal probs
+		c_L_merge[S[datum]] = c_i[obs_2_idx];
+	}
+	
+	// Draw a new value for the centers
+	center_L_merge[c_L_merge[obs_2_idx]] = sample_center_1_cluster(const_data.attrisize);
+	
+	// draw a new value for the sigma
+	sigma_L_merge[c_L_merge[obs_2_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+    
+    // aux state for the merge
+    internal_state state_merge = {c_L_merge, center_L_merge, sigma_L_merge, unique_classes(c_L_merge).length()};
+	
+	// Intermediate restricted Gibbs Sampler on c_L_split
+	for(int iter = 0; iter < t; ++iter )
+		// update only merge cls center and sigma 
+		update_centers(state_merge, const_data);
+		update_sigma(state_merge.sigma, state_merge.center, state_merge.c_i, const_data);
+	
+	// --------------- Step 4&5 ---------------
+	// variable to store prob
+	q = 1
+
+    // Aux var to store *-state
+    internal_state state_star = {IntegerVector(), List(), List(), 0};
+
+	if(c_i[obs_1_idx] == c_i[obs_2_idx]){
+		state_star.c_i = clone(c_L_split);
+		
+		// ----- (a) - last Restricted Gibbs Sampler -----
+		restricted_gibbs_sampler(state_star, obs_1_idx, obs_2_idx, S);
+		update_centers(state_star, const_data);
+		update_sigma(state_star.sigma, state_star.center, state_star.c_i, const_data);
+		
+		// ----- (b) - Transition probabilities ----- 
+		q = equation (15)
+					
+		// Calculate the acceptance ratio
+		acpt_ratio = equation (4)
+	}	
+	else{
+		// ----- (a) - merge -----
+		state_star.c_i = clone(c_L_merge);
+		
+		// Last restricted Gibbs Sampling to update merge cls parameters
+		update_centers(state_star, const_data);
+		update_sigma(state_star.sigma, state_star.center, state_star.c_i, const_data);
+		
+		// ----- (b) - transition probabilities -----
+		q = equation (16)
+		
+		// Calculate the acceptance ratio
+		acpt_ratio = equation (4)
+		
+	}
+	
+	// ----- (c) - Metropolis-Hastings step -----
+	// sample if accept or not the MC state stored in c_star
+    if(sample(acpt_ration)){
+        state = state_star;
+    }
+
 }
 
 // [[Rcpp::export]]
@@ -540,6 +730,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
      * @param iterations Number of MCMC iterations (default: 1000)
      * @return List containing final clustering results
     */
+    // Initialize auxiliary data and internal state
     aux_data const_data = {data, data.nrow(), attrisize, gamma, v, w};
     internal_state state = {IntegerVector(), List(), List(), L};
 
@@ -590,6 +781,9 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         // Update centers and sigmas
         update_centers(state, const_data);
         update_sigma(state.sigma, state.center, state.c_i, const_data);
+
+        // Split and merge step
+        split_and_merge(state, const_data);
 
         if(verbose == 2){
             print_internal_state(state);
