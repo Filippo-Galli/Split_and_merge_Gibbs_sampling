@@ -236,53 +236,6 @@ void sample_sigmas(List & sigma, const int number_cls, const aux_data & const_da
     } 
 }
 
-void clean_var_1(internal_state & state, const IntegerVector& attrisize, const IntegerVector& existing_cls, 
-                List & centers, List & sigmas, int & total_cls, IntegerVector & c_i) {
-    // Efficiently find unique existing clusters
-    int num_existing_cls = existing_cls.length();
-
-    // Create a mapping for efficient cluster index lookup
-    std::unordered_map<int, int> cls_to_new_index;
-    for(int i = 0; i < num_existing_cls; ++i) {
-        int idx_temp = 0;
-        // If the cluster index is less than the number of existing clusters, keep the same index
-        if(existing_cls[i] < num_existing_cls){
-                cls_to_new_index[existing_cls[i]] = existing_cls[i];
-        }
-        else{
-            // find the first available index for new clusters
-            while(cls_to_new_index.find(idx_temp) != cls_to_new_index.end() && idx_temp < num_existing_cls){
-                idx_temp++;
-            }
-            
-            cls_to_new_index[existing_cls[i]] = idx_temp;
-        }
-    }
-    
-    // Preallocate new containers with the correct size
-    List new_center(num_existing_cls);
-    List new_sigma(num_existing_cls);
-
-    // Check if i is correct or we need cls_to_new_index[existing_cls[i]]
-    for(int i = 0; i < num_existing_cls; ++i) {
-        new_center[i] = centers[existing_cls[i]];
-        new_sigma[i] = sigmas[existing_cls[i]];
-    }
-
-    // Update state with new centers, sigmas, and cluster count
-    centers = std::move(new_center);
-    sigmas = std::move(new_sigma);
-    total_cls = num_existing_cls;
-
-    // Vectorized cluster index update using the mapping
-    for(int i = 0; i < c_i.length(); i++) {
-        auto it = cls_to_new_index.find(c_i[i]);
-        if(it != cls_to_new_index.end()) {
-            c_i[i] = it->second;
-        }
-    }
-}
-
 void clean_var(internal_state & updated_state, const internal_state & current_state, const IntegerVector& existing_cls, const IntegerVector& attrisize) {
     /**
      * @brief Clean up internal state variables
@@ -563,6 +516,13 @@ NumericMatrix dhamming_matrix(const NumericMatrix & data, const NumericVector & 
     }
 
     return hamming_dist;
+}
+
+void split_and_merge(internal_state & state, aux_data & const_data) {
+    /**
+     * @brief Split and merge step
+     * @details This function implements the split and merge step of the MCMC algorithm
+     */
 }
 
 // [[Rcpp::export]]
