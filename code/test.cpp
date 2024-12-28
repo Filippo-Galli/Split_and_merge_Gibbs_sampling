@@ -234,53 +234,6 @@ void sample_sigmas(List & sigma, const int number_cls, const aux_data & const_da
     } 
 }
 
-void clean_var_1(internal_state & state, const IntegerVector& attrisize, const IntegerVector& existing_cls, 
-                List & centers, List & sigmas, int & total_cls, IntegerVector & c_i) {
-    // Efficiently find unique existing clusters
-    int num_existing_cls = existing_cls.length();
-
-    // Create a mapping for efficient cluster index lookup
-    std::unordered_map<int, int> cls_to_new_index;
-    for(int i = 0; i < num_existing_cls; ++i) {
-        int idx_temp = 0;
-        // If the cluster index is less than the number of existing clusters, keep the same index
-        if(existing_cls[i] < num_existing_cls){
-                cls_to_new_index[existing_cls[i]] = existing_cls[i];
-        }
-        else{
-            // find the first available index for new clusters
-            while(cls_to_new_index.find(idx_temp) != cls_to_new_index.end() && idx_temp < num_existing_cls){
-                idx_temp++;
-            }
-            
-            cls_to_new_index[existing_cls[i]] = idx_temp;
-        }
-    }
-    
-    // Preallocate new containers with the correct size
-    List new_center(num_existing_cls);
-    List new_sigma(num_existing_cls);
-
-    // Check if i is correct or we need cls_to_new_index[existing_cls[i]]
-    for(int i = 0; i < num_existing_cls; ++i) {
-        new_center[i] = centers[existing_cls[i]];
-        new_sigma[i] = sigmas[existing_cls[i]];
-    }
-
-    // Update state with new centers, sigmas, and cluster count
-    centers = std::move(new_center);
-    sigmas = std::move(new_sigma);
-    total_cls = num_existing_cls;
-
-    // Vectorized cluster index update using the mapping
-    for(int i = 0; i < c_i.length(); i++) {
-        auto it = cls_to_new_index.find(c_i[i]);
-        if(it != cls_to_new_index.end()) {
-            c_i[i] = it->second;
-        }
-    }
-}
-
 void clean_var(internal_state & updated_state, const internal_state & current_state, const IntegerVector& existing_cls, const IntegerVector& attrisize) {
     /**
      * @brief Clean up internal state variables
@@ -637,36 +590,84 @@ double probgs_phi(internal_state & gamma, aux_data & const_data, std::vector<int
  return priorphi;
 }
 
-double probgs_c_i(internal_state & gamma_star, internal_state & gamma, aux_data & const_data, std::vector<int> & S, int idx1, int idx2){
+double probgs_c_i(internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, const int idx1, const int idx2){
+    /**
+     * @brief Compute the probability of the cluster assignment - paper reference: P_{GS}(c*|c^L, phi*, y)
+     * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
+     * @param gamma state containing the launch cluster assignment, launch cluster centers, and launch cluster dispersions - paper reference: c^L
+     * @param const_data auxiliary data for the MCMC algorithm containing the input data matrix, attribute sizes, and hypergeometric parameters
+     * @param S vector of indices of observations in the same cluster of idx1 or idx2
+     * @param idx1 index of the first chosen observation
+     * @param idx2 index of the second chosen observation
+     */
+
+    // Variable to store the probability of the cluster assignment
     double pgs=1;
-    // Pgs(c*|c^L, phi*, y)
-    std::vector Sij=S;
+
+    // Compute the set Sij = S unione {idx1, idx2}
+    std::vector<int> Sij(S); 
     Sij.push_back(idx1);
     Sij.push_back(idx2);
-    IntegerVector cs;
-    for (unsigned k=0; k<Sij.size(); k++){
-        cs[k]=gamma.c_i[Sij[k]]; // allocation of vector Sij
-    }
-    
-    NumericVector center_i=gamma_star.center[cs[Sij.size()-2]];
-    NumericVector sigma_i=gamma_star.sigma[cs[Sij.size()-2]];
-    NumericVector center_j=gamma_star.center[cs[Sij.size()-1]];
-    NumericVector sigma_j=gamma_star.sigma[cs[Sij.size()-1]];
-    for (unsigned k=0; k<Sij.size(); k++){
+
+    // Save cluster centers and dispersions for the two observations
+    NumericVector center_i=gamma_star.center[gamma.c_i[idx1]]; 
+    NumericVector sigma_i=gamma_star.sigma[gamma.c_i[idx1]];
+
+    NumericVector center_j=gamma_star.center[gamma.c_i[idx2]];
+    NumericVector sigma_j=gamma_star.sigma[gamma.c_i[idx2]];
+
+    // Compute the probability of the cluster assignment without the two observations idx1 and idx2
+    for (unsigned k=0; k<Sij.size() - 2; k++){
+        // extract the k-th observation data point
         NumericVector y_k = const_data.data(Sij[k], _);
+
         double num=0, deni=0, denj=0;
-        int nk=count_cluster_members(cs, k, cs[k]); //rivedere
-        int ni=count_cluster_members(cs, k, cs[Sij.size()-2]);
-        int nj=count_cluster_members(cs, k, cs[Sij.size()-1]);
-        NumericVector center_k=gamma_star.center[cs[k]];
-        NumericVector sigma_k=gamma_star.sigma[cs[k]];
+        // Compute the number of elements in the cluster k without the k observation
+        int nk=count_cluster_members(gamma.c_i, k, gamma.c_i[k]);
+        // Compute the number of elements in the cluster i without the k observation
+        int ni=count_cluster_members(gamma.c_i, k, gamma.c_i[idx1]);
+        // Compute the number of elements in the cluster j without the k observation
+        int nj=count_cluster_members(gamma.c_i, k, gamma.c_i[idx2]);
+        
+        // Extract the cluster centers and dispersions for the cluster of k observation
+        NumericVector center_k=gamma_star.center[gamma.c_i[k]];
+        NumericVector sigma_k=gamma_star.sigma[gamma.c_i[k]];
+        
+        // Compute the log-Hamming between the k-th observation and the cluster centers
         for (int j=0; j<y_k.length(); j++){
             num+=dhamming(y_k[j], center_k[j], sigma_k[j], const_data.attrisize[j], true);
             deni+=dhamming(y_k[j], center_i[j], sigma_i[j], const_data.attrisize[j], true);
             denj+=dhamming(y_k[j], center_j[j], sigma_j[j], const_data.attrisize[j], true);
         }
+        // Compute the probability of the cluster assignment
         pgs*=(nk*std::exp(num))/(ni*std::exp(deni)+nj*std::exp(denj));
     }
+
+    // IntegerVector cs;
+    // for (unsigned k=0; k<Sij.size(); k++){
+    //     cs[k]=gamma.c_i[Sij[k]]; // allocation of vector Sij
+    // }
+    
+    // NumericVector center_i=gamma_star.center[cs[Sij.size()-2]]; // perchè non usare direttamente gamma_star.center[gamma.c_i[idx1]]?
+    // NumericVector sigma_i=gamma_star.sigma[cs[Sij.size()-2]];
+    // NumericVector center_j=gamma_star.center[cs[Sij.size()-1]];
+    // NumericVector sigma_j=gamma_star.sigma[cs[Sij.size()-1]];
+
+    // for (unsigned k=0; k<Sij.size(); k++){
+    //     NumericVector y_k = const_data.data(Sij[k], _);
+    //     double num=0, deni=0, denj=0;
+    //     int nk=count_cluster_members(cs, k, cs[k]); //rivedere
+    //     int ni=count_cluster_members(cs, k, cs[Sij.size()-2]);
+    //     int nj=count_cluster_members(cs, k, cs[Sij.size()-1]);
+    //     NumericVector center_k=gamma_star.center[cs[k]];
+    //     NumericVector sigma_k=gamma_star.sigma[cs[k]];
+    //     for (int j=0; j<y_k.length(); j++){
+    //         num+=dhamming(y_k[j], center_k[j], sigma_k[j], const_data.attrisize[j], true);
+    //         deni+=dhamming(y_k[j], center_i[j], sigma_i[j], const_data.attrisize[j], true);
+    //         denj+=dhamming(y_k[j], center_j[j], sigma_j[j], const_data.attrisize[j], true);
+    //     }
+    //     pgs*=(nk*std::exp(num))/(ni*std::exp(deni)+nj*std::exp(denj));
+    // }
 
     return pgs;
 }
