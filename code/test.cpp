@@ -569,9 +569,8 @@ void restricted_gibbs_sampler(internal_state & state, int idx1, int idx2, std::v
         // Calculate probabilities for the two clusters
         NumericVector probs(2);
         for (int k = 0; k < 2; k++) {
-            
-                NumericVector center_k ; //correggere inizializzazione
-                NumericVector sigma_k ; //correggere inizializzazione
+                NumericVector center_k; //correggere inizializzazione
+                NumericVector sigma_k; //correggere inizializzazione
             if(k == 0){
                 NumericVector center_k = center1;
                 NumericVector sigma_k = sigma1;
@@ -640,20 +639,24 @@ double probgs_phi(internal_state & gamma, aux_data & const_data, std::vector<int
 
 double probgs_c_i(internal_state & gamma, aux_data & const_data, std::vector<int> & S){
     double pgs=1;
-    aux_data cs;
+    /*aux_data cs;
     for (unsigned j=0; j<S.size();j++){
 
     }
 
     //rivedi indici
-    /*
-    for (int j=0;j<const_data.n; j++){
-        int nck=count_cluster_members(cs, k, cs[j]);
+
+    for (int k=0;k<const_data.n; k++){
+        NumericVector x_k = constant_data.data(k, _);
+        int nck=count_cluster_members(cs, k, cs[k]);
         int nci=count_cluster_members(cs, obs_1_idx, cs[obs_1_idx]);
         int ncj=count_cluster_members(cs, obs_2_idx, cs[obs_2_idx]);
-        num= nck * dhamming(x_i[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true); 
-        den=nci * dhamming(x_i[obs_1_idx], center_k[obs_1_idx], sigma_k[obs_1_idx], constant_data.attrisize[obs_1_idx], true) 
-            + nck * dhamming(x_i[obs_2_idx], center_k[obs_2_idx], sigma_k[obs_2_idx], constant_data.attrisize[obs_2_idx], true);
+        for (int j=0; j<xk.length(); j++){
+            num= nck * dhamming(xk[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true); 
+            den=nci * dhamming(xk[j], center_k[obs_1_idx], sigma_k[obs_1_idx], constant_data.attrisize[obs_1_idx], true) 
+                + ncj * dhamming(xk[j], center_k[obs_2_idx], sigma_k[obs_2_idx], constant_data.attrisize[obs_2_idx], true);
+        }
+               
         pgs*=num/den;
     }*/
     return pgs;
@@ -700,6 +703,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
 
     // --------------- Step 1 ---------------
 	// choose 2 observation random from the data
+    std::cout<<"Inizio Split and Merge: " << std::endl;
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, const_data.n - 1);
@@ -708,6 +712,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
 	do {
     		obs_2_idx = dis(gen);
 	} while (obs_2_idx == obs_1_idx);
+    std::cout<<"osservazioni scelte: " << obs_1_idx<<" e  " << obs_2_idx<< std::endl;
 	
 	// --------------- Step 2 ---------------
 	// Create S the set of idx of obs in the same cluster of obs_1 or obs_2
@@ -722,6 +727,9 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
             S.push_back(i);
         }
     }
+    
+	std::cout<<"\ncluster a cui appartengono: " << state.c_i[obs_1_idx]<<" e  " << state.c_i[obs_2_idx]<< std::endl;
+    std::cout<<"lunghezza di S: "<< S.size()<<std::endl;
 	
 	// --------------- Step 3 ---------------
 	// gamma split
@@ -735,63 +743,69 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
 	List sigma_L_merge = clone(state.sigma);
 	
 	// ----- gamma split popolation -----
-	if(state.c_i[obs_1_idx] == state.c_i[obs_2_idx]){
-        int lat_cls = unique_classes(state.c_i).length(); 
-		// set the allocation of obs_1_idx to a latent cluster
-		c_L_split[obs_1_idx] = lat_cls;
-	
-	
-	// randomly allocate with equal probs data in S between cls-1 and cls-2
-	for(unsigned datum = 0; datum < S.size(); ++datum){
-		// assignment with equal probs
-		c_L_split[S[datum]] = sample(2, 1, true)[0] == 1 ? c_L_split[obs_1_idx] : c_L_split[obs_2_idx];
-	}
-	
-	// Draw a new value for the centers
-	center_L_split[c_L_split[obs_1_idx]] = sample_center_1_cluster(const_data.attrisize);
-	center_L_split[c_L_split[obs_2_idx]] = sample_center_1_cluster(const_data.attrisize);
-	
-	// draw a new value for the sigma
-	sigma_L_split[c_L_split[obs_1_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
-	sigma_L_split[c_L_split[obs_2_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
-	
-    // aux state for the split
-    internal_state state_split = {c_L_split, center_L_split, sigma_L_split, unique_classes(c_L_split).length()};
+	    if(state.c_i[obs_1_idx] == state.c_i[obs_2_idx]){
+            std::cout<<"\n siamo nello split 1.1" <<std::endl;
+            int lat_cls = unique_classes(state.c_i).length(); 
+            // set the allocation of obs_1_idx to a latent cluster
+            c_L_split[obs_1_idx] = lat_cls;
+        }
+        
+        // randomly allocate with equal probs data in S between cls-1 and cls-2
+        for(unsigned datum = 0; datum < S.size(); ++datum){
+            // assignment with equal probs
+            c_L_split[S[datum]] = sample(2, 1, true)[0] == 1 ? c_L_split[obs_1_idx] : c_L_split[obs_2_idx];
+            std::cout<<std::endl;
+        }
+        
+        // Draw a new value for the centers
+        center_L_split[c_L_split[obs_1_idx]] = sample_center_1_cluster(const_data.attrisize);
+        center_L_split[c_L_split[obs_2_idx]] = sample_center_1_cluster(const_data.attrisize);
+        
+        // draw a new value for the sigma
+        sigma_L_split[c_L_split[obs_1_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+        sigma_L_split[c_L_split[obs_2_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+        
+        // aux state for the split
+        internal_state state_split = {c_L_split, center_L_split, sigma_L_split, unique_classes(c_L_split).length()};
 
-	// Intermediate restricted Gibbs Sampler on c_L_split
-	for(int iter = 0; iter < t; ++iter )
-		restricted_gibbs_sampler(state_split, obs_1_idx, obs_2_idx, S, const_data);
-		// update both cls new center and sigma 
-		update_centers(state_split, const_data);
-		update_sigma(state_split.sigma, state_split.center, state_split.c_i, const_data);
-	}
+        // Intermediate restricted Gibbs Sampler on c_L_split
+        for(int iter = 0; iter < t; ++iter ){
+            restricted_gibbs_sampler(state_split, obs_1_idx, obs_2_idx, S, const_data);
+            // update both cls new center and sigma 
+            update_centers(state_split, const_data);
+            update_sigma(state_split.sigma, state_split.center, state_split.c_i, const_data);
+        }
+            
+	
 	// ----- gamma merge popolation -----
-	if(state.c_i[obs_1_idx] != state.c_i[obs_2_idx]){
-		// set the allocation of obs_1_idx equal to the cls of obs_2 (c_j)
-		c_L_merge[obs_1_idx] = state.c_i[obs_2_idx];
+        if(state.c_i[obs_1_idx] != state.c_i[obs_2_idx]){
+            std::cout<<"\n siamo nel merge 1" <<std::endl;
+            // set the allocation of obs_1_idx equal to the cls of obs_2 (c_j)
+            c_L_merge[obs_1_idx] = state.c_i[obs_2_idx];
+        }
 	
-	
-	// Allocate all the data in S to the cls of obs_2_idx
-	for(unsigned datum = 0; datum < S.size(); ++datum){
-		// assignment with equal probs
-		c_L_merge[S[datum]] = state.c_i[obs_2_idx];
-	}
-	
-	// Draw a new value for the centers
-	center_L_merge[c_L_merge[obs_2_idx]] = sample_center_1_cluster(const_data.attrisize);
-	
-	// draw a new value for the sigma
-	sigma_L_merge[c_L_merge[obs_2_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+        // Allocate all the data in S to the cls of obs_2_idx
+        for(unsigned datum = 0; datum < S.size(); ++datum){
+            // assignment with equal probs
+            c_L_merge[S[datum]] = state.c_i[obs_2_idx];
+        }
+        
+        // Draw a new value for the centers
+        center_L_merge[c_L_merge[obs_2_idx]] = sample_center_1_cluster(const_data.attrisize);
+        
+        // draw a new value for the sigma
+        sigma_L_merge[c_L_merge[obs_2_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+        
+        // aux state for the merge
+        internal_state state_merge = {c_L_merge, center_L_merge, sigma_L_merge, unique_classes(c_L_merge).length()};
+        
+        // Intermediate restricted Gibbs Sampler on c_L_split
+        for(int iter = 0; iter < r; ++iter ){
+            // update only merge cls center and sigma 
+            update_centers(state_merge, const_data);
+            update_sigma(state_merge.sigma, state_merge.center, state_merge.c_i, const_data);
+        }
     
-    // aux state for the merge
-    internal_state state_merge = {c_L_merge, center_L_merge, sigma_L_merge, unique_classes(c_L_merge).length()};
-	
-	// Intermediate restricted Gibbs Sampler on c_L_split
-	for(int iter = 0; iter < r; ++iter )
-		// update only merge cls center and sigma 
-		update_centers(state_merge, const_data);
-		update_sigma(state_merge.sigma, state_merge.center, state_merge.c_i, const_data);
-	}
 
 
 	// --------------- Step 4&5 ---------------
@@ -835,9 +849,9 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
 	
 	// ----- (c) - Metropolis-Hastings step -----
 	// sample if accept or not the MC state stored in c_star
-    if(sample(acpt_ratio)){
+    /*if(sample(acpt_ratio)){
         state = state_star;
-    }
+    }*/
 
 }
 
