@@ -637,30 +637,41 @@ double probgs_phi(internal_state & gamma, aux_data & const_data, std::vector<int
  return priorphi;
 }
 
-double probgs_c_i(internal_state & gamma, aux_data & const_data, std::vector<int> & S){
+double probgs_c_i(internal_state & gamma_star, internal_state & gamma, aux_data & const_data, std::vector<int> & S, int idx1, int idx2){
     double pgs=1;
-    /*aux_data cs;
-    for (unsigned j=0; j<S.size();j++){
-
+    // Pgs(c*|c^L, phi*, y)
+    std::vector Sij=S;
+    Sij.push_back(idx1);
+    Sij.push_back(idx2);
+    IntegerVector cs;
+    for (unsigned k=0; k<Sij.size(); k++){
+        cs[k]=gamma.c_i[Sij[k]]; // allocation of vector Sij
+    }
+    
+    NumericVector center_i=gamma_star.center[cs[Sij.size()-2]];
+    NumericVector sigma_i=gamma_star.sigma[cs[Sij.size()-2]];
+    NumericVector center_j=gamma_star.center[cs[Sij.size()-1]];
+    NumericVector sigma_j=gamma_star.sigma[cs[Sij.size()-1]];
+    for (unsigned k=0; k<Sij.size(); k++){
+        NumericVector y_k = const_data.data(Sij[k], _);
+        double num=0, deni=0, denj=0;
+        int nk=count_cluster_members(cs, k, cs[k]); //rivedere
+        int ni=count_cluster_members(cs, k, cs[Sij.size()-2]);
+        int nj=count_cluster_members(cs, k, cs[Sij.size()-1]);
+        NumericVector center_k=gamma_star.center[cs[k]];
+        NumericVector sigma_k=gamma_star.sigma[cs[k]];
+        for (int j=0; j<y_k.length(); j++){
+            num+=dhamming(y_k[j], center_k[j], sigma_k[j], const_data.attrisize[j], true);
+            deni+=dhamming(y_k[j], center_i[j], sigma_i[j], const_data.attrisize[j], true);
+            denj+=dhamming(y_k[j], center_j[j], sigma_j[j], const_data.attrisize[j], true);
+        }
+        pgs*=(nk*std::exp(num))/(ni*std::exp(deni)+nj*std::exp(denj));
     }
 
-    //rivedi indici
-
-    for (int k=0;k<const_data.n; k++){
-        NumericVector x_k = constant_data.data(k, _);
-        int nck=count_cluster_members(cs, k, cs[k]);
-        int nci=count_cluster_members(cs, obs_1_idx, cs[obs_1_idx]);
-        int ncj=count_cluster_members(cs, obs_2_idx, cs[obs_2_idx]);
-        for (int j=0; j<xk.length(); j++){
-            num= nck * dhamming(xk[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true); 
-            den=nci * dhamming(xk[j], center_k[obs_1_idx], sigma_k[obs_1_idx], constant_data.attrisize[obs_1_idx], true) 
-                + ncj * dhamming(xk[j], center_k[obs_2_idx], sigma_k[obs_2_idx], constant_data.attrisize[obs_2_idx], true);
-        }
-               
-        pgs*=num/den;
-    }*/
     return pgs;
 }
+
+
 
 double acceptance_ratio(internal_state & gamma, internal_state & gamma_star, aux_data & const_data, double & q, int obs_1_idx, int obs_2_idx, std::vector<int> & S, std::string star){
     double qpl=1;
