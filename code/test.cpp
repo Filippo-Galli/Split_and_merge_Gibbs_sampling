@@ -604,11 +604,6 @@ double probgs_c_i(internal_state & gamma_star, const internal_state & gamma, con
     // Variable to store the probability of the cluster assignment
     double pgs=1;
 
-    // Compute the set Sij = S unione {idx1, idx2}
-    std::vector<int> Sij(S); 
-    Sij.push_back(idx1);
-    Sij.push_back(idx2);
-
     // Save cluster centers and dispersions for the two observations
     NumericVector center_i=gamma_star.center[gamma.c_i[idx1]]; 
     NumericVector sigma_i=gamma_star.sigma[gamma.c_i[idx1]];
@@ -617,7 +612,7 @@ double probgs_c_i(internal_state & gamma_star, const internal_state & gamma, con
     NumericVector sigma_j=gamma_star.sigma[gamma.c_i[idx2]];
 
     // Compute the probability of the cluster assignment without the two observations idx1 and idx2
-    for (unsigned k=0; k<Sij.size() - 2; k++){
+    for (unsigned k=0; k<S.size(); k++){
         // extract the k-th observation data point
         NumericVector y_k = const_data.data(Sij[k], _);
 
