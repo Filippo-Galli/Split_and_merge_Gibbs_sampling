@@ -572,11 +572,11 @@ void restricted_gibbs_sampler(internal_state & state, int idx1, int idx2, std::v
                 NumericVector center_k; //correggere inizializzazione
                 NumericVector sigma_k; //correggere inizializzazione
             if(k == 0){
-                NumericVector center_k = center1;
-                NumericVector sigma_k = sigma1;
+                 center_k = center1;
+                 sigma_k = sigma1;
             } else {
-                NumericVector center_k = center2;
-                NumericVector sigma_k = sigma2;
+                 center_k = center2;
+                 sigma_k = sigma2;
             }
 
             double Hamming = 0;
