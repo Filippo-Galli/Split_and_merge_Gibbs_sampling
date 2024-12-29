@@ -582,16 +582,15 @@ double priors(internal_state & gamma, int obs_index, aux_data & const_data){
     return priorg;
 }
 
-double probgs_phi(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, int idx1, int idx2, const std::string & star){
+double probgs_phi(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, const int & choosen_idx){
     /**
      * @brief Compute the probability of the cluster dispersion and cluster center - paper reference: P_{GS}(\phi*|phi^L, c^L, y)
      * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
      * @param gamma state containing the launch cluster assignment, launch cluster centers, and launch cluster dispersions - paper reference: (c^L, \phi^L)
      * @param const_data auxiliary data for the MCMC algorithm containing the input data matrix, attribute sizes, and hypergeometric parameters
      * @param S vector of indices of observations in the same cluster of idx1 or idx2
-     * @param idx1 index of the first chosen observation
-     * @param idx2 index of the second chosen observation
      * @param star string to identify the type of operation (split or merge)
+     * @param choosen_idx index of the chosen observation
      */
 
     // Variable to store the probability of the cluster dispersion and cluster center
@@ -600,44 +599,24 @@ double probgs_phi(const internal_state & gamma_star, const internal_state & gamm
 
     // --------------- Center probs ---------------
     // Compute the uniform probability of the cluster center
-    int p = as<IntegerVector>(gamma_star.center[gamma_star.c_i[idx1]]).length();
-    if(star=="split"){
-        for (int i=0; i<2; i++){      
-            for (int j=0; j<p; j++){
-                center_prob*=1/const_data.attrisize[j];
-            }
-        }
-    }
-    if(star=="merge"){    
-        for (int j=0; j<p; j++){
-            center_prob*=1/const_data.attrisize[j];
-        }    
-    }
+    int p = as<IntegerVector>(gamma_star.center[gamma_star.c_i[choosen_idx]]).length();
+    for (int j=0; j<p; j++){
+        center_prob*=1/const_data.attrisize[j];
+    }  
+    
 
     // --------------- Sigma probs ---------------
     // Compute the probability of the cluster dispersion
-    int idx = idx1;
-    if(star=="split"){
-        for (int i=0; i<2; i++){
-            if (i==1) 
-                idx=idx2;
-            // dhyper_raf in hyperg.cpp
-            for (int j=0; j<p; j++){
-                double temp = dhyper_raf(as<NumericVector>(gamma_star.sigma[gamma_star.c_i[idx]])[j], const_data.v[j], const_data.w[j], const_data.attrisize[j], true)[0];
-                sigma_prob += temp;
-            }
-        }
-        // Since the function returns the log of the probability, we need to exponentiate it
-        sigma_prob = std::exp(sigma_prob);
+    // dhyper_raf in hyperg.cpp
+    for (int j=0; j<p; j++){
+        double temp = dhyper_raf(as<NumericVector>(gamma_star.sigma[gamma_star.c_i[choosen_idx]])[j], const_data.v[j], const_data.w[j], const_data.attrisize[j], true)[0];
+        sigma_prob += temp;
     }
-    if(star=="merge"){    
-        for (int j=0; j<p; j++){
-            double temp = dhyper_raf(as<NumericVector>(gamma_star.sigma[gamma_star.c_i[idx]])[j], const_data.v[j], const_data.w[j], const_data.attrisize[j], true)[0];
-            sigma_prob += temp;
-        }
-        // Since the function returns the log of the probability, we need to exponentiate it
-        sigma_prob = std::exp(sigma_prob);
-    }
+    
+    // Since the function returns the log of the probability, we need to exponentiate it
+    sigma_prob = std::exp(sigma_prob);
+    
+
 
     return center_prob*sigma_prob;
 }
@@ -856,7 +835,13 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
 		update_sigma(state_star.sigma, state_star.center, state_star.c_i, const_data);
 		
 		// ----- (b) - Transition probabilities ----- 
-		q *= probgs_phi(state, state_merge, const_data, S, obs_1_idx, obs_2_idx, "split");
+        // Equation (15)
+        // Numerator
+		q *= probgs_phi(state, state_merge, const_data, S, obs_1_idx);
+        // Denominator;
+        q /= probgs_c_i(state_star, state_split, const_data, S, obs_1_idx, obs_2_idx);
+        q /= probgs_phi(state_star, state_split, const_data, S, obs_1_idx);
+        q /= probgs_phi(state_star, state_split, const_data, S, obs_2_idx);
 					
 		// Calculate the acceptance ratio
 		acpt_ratio = acceptance_ratio(state, state_star, const_data, q, obs_1_idx, obs_2_idx, S, "split");
@@ -871,7 +856,13 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 100,
 		update_sigma(state_star.sigma, state_star.center, state_star.c_i, const_data);
 		
 		// ----- (b) - transition probabilities -----
-		// q = equation (16)
+        // Equation (16)
+        // Numerator
+        q *= probgs_phi(state, state_split, const_data, S, obs_1_idx);
+        q *= probgs_phi(state, state_split, const_data, S, obs_2_idx);
+        q *= probgs_c_i(state, state_split, const_data, S, obs_1_idx, obs_2_idx);
+        // Denominator
+        q /= probgs_phi(state_star, state_merge, const_data, S, obs_1_idx);
 		
 		// Calculate the acceptance ratio
 		acpt_ratio = acceptance_ratio(state, state_star, const_data, q, obs_1_idx, obs_2_idx, S, "merge");
