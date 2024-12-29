@@ -49,11 +49,26 @@ u = c(rep(6,12),3,rep(6,3))
 v = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/test.cpp")
+results <- run_markov_chain(data = zoo, 
+                            attrisize = mm, 
+                            gamma = 0.68, 
+                            v = v, 
+                            w = u, 
+                            verbose = 0, 
+                            m = m, 
+                            iterations = iterations, 
+                            L = l, 
+                            c_i = unlist(groundTruth), 
+                            burnin = burnin)
+
+
+
+
 
 L_plurale <- c(7)
 initial_assignment_bool <- c(TRUE)
-iterations <- 20000
-burnin <- 5000
+iterations <- 10
+burnin <- 0
 m <- 3
 for(l in L_plurale){
   temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
