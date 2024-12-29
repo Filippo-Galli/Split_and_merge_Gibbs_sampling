@@ -609,7 +609,11 @@ double probgs_phi(const internal_state & gamma_star, const internal_state & gamm
     
     NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, gamma_star.c_i[choosen_idx], gamma_star);
     List prob_centers(Center_prob(data_tmp, gamma_star.sigma[choosen_idx], as<NumericVector>(const_data.attrisize)));
-    center_prob = std::accumulate(prob_centers.begin(), prob_centers.end(), 1.0, std::multiplies<double>());
+    NumericVector centerstar=gamma_star.center[gamma_star.c_i[choosen_idx]];
+    for (int k=0; k<centerstar.length(); k++){
+        NumericVector z=prob_centers[k];
+        center_prob*=z[centerstar[k]-1];
+    }
 
     // --------------- Sigma probs ---------------
     // Compute the probability of the cluster dispersion
