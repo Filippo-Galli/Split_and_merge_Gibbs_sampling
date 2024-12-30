@@ -62,6 +62,7 @@ Rcpp::NumericVector dhyper_raf(const Rcpp::NumericVector u,const double d ,const
   for(int i=0;i<n;i++){
     out[i]=log(K)+d*log(u[i])-(d+c)*log(1+u[i]*(m-1));
   }
+
   if(log_scale){
     return(out);
   }
