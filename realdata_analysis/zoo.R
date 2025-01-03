@@ -42,6 +42,9 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 Sys.setenv("PKG_CXXFLAGS" = paste0("-I/home/filippo/R/x86_64-pc-linux-gnu-library/4.4/RcppGSL/include", 
                                    " -I/usr/local/include"))
 
+Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-library/4.4/RcppGSL/include"', 
+                                   " -I/usr/local/include"))
+
 # Include full library paths and libraries
 Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 
@@ -56,7 +59,7 @@ results <- run_markov_chain(data = zoo,
                             w = u, 
                             verbose = 1, 
                             m = 3, 
-                            iterations = 10, 
+                            iterations = 100, 
                             L = 7,
                             burnin = 0)
 

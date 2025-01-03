@@ -351,12 +351,14 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
         if(k < unique_classes_without_i.length())
             n_i_z = count_cluster_members(state_temp.c_i, index_i, unique_classes_without_i[k]);
         // Calculate probability
-        if(k < probs.length())
+        if(k < probs.length()){
             if (n_i_z == 0) {
                 probs[k] = 0;
-            } else {
+            } 
+            else {
                 probs[k] = n_i_z * std::exp(Hamming);
             }
+        }
     }
 
     // prob of latent clusters
@@ -799,7 +801,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
 	do {
     		obs_2_idx = dis(gen);
 	} while (obs_2_idx == obs_1_idx);
-    std::cout<<"[DEBUG] Osservazioni scelte: " << obs_1_idx<<" e  " << obs_2_idx<< std::endl;
+    std::cout<<"[DEBUG] Osservazioni scelte: " << obs_1_idx<<" e  " << obs_2_idx << std::endl;
 	
 	// --------------- Step 2 ---------------
 	// Create S the set of idx of obs in the same cluster of obs_1 or obs_2
@@ -835,6 +837,8 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         int lat_cls = unique_classes(state.c_i).length(); 
         // set the allocation of obs_1_idx to a latent cluster
         c_L_split[obs_1_idx] = lat_cls;
+        center_L_split.push_back(R_NilValue);
+        sigma_L_split.push_back(R_NilValue);
     }
     
     // randomly allocate with equal probs data in S between cls-1 and cls-2
@@ -851,6 +855,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
     sigma_L_split[c_L_split[obs_1_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
     sigma_L_split[c_L_split[obs_2_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
     
+    
     // aux state for the split
     internal_state state_split = {c_L_split, center_L_split, sigma_L_split, static_cast<int>(unique_classes(c_L_split).length())};
 
@@ -859,7 +864,9 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         restricted_gibbs_sampler(state_split, obs_1_idx, obs_2_idx, S, const_data);
         // update both cls new center and sigma 
         update_centers(state_split, const_data);
+        std::cout<<"[DEBUG] after update center" <<std::endl;
         update_sigma(state_split.sigma, state_split.center, state_split.c_i, const_data);
+        std::cout<<"[DEBUG] after update sima" <<std::endl;
     }
 
     std::cout << "[DEBUG] Gamma launch state split Restricted Gibbs sampling passed" << std::endl;
