@@ -59,9 +59,9 @@ results <- run_markov_chain(data = zoo,
                             w = u, 
                             verbose = 1, 
                             m = 3, 
-                            iterations = 100, 
+                            iterations = 1, 
                             L = 7,
-                            burnin = 0)
+                            burnin = 0, neal8 = FALSE)
 
 L_plurale <- c(7)
 initial_assignment_bool <- c(TRUE)

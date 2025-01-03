@@ -52,33 +52,40 @@ struct aux_data{
 void print_internal_state(const internal_state& state, int interest = -1) {
     /**
      * @brief Print internal state of the MCMC algorithm
-     * @note Interest values <-> -1: print all, 1: print cluster assignments, 2: print cluster centers, 3: print cluster dispersions
+     * @note Interest values <-> -1: print all, 1: print cluster assignments, 2: print cluster centers, 3: print cluster dispersions, 4: number of cluster
      * @param state Internal state of the MCMC algorithm
      * @param interest Index of what print (default: -1).
      * @details This function prints the current cluster assignments, cluster centers, and cluster dispersions
      */
+
+    
     if(interest == 1 || interest == -1){
-        Rcpp::Rcout << "Cluster assignments: " << std::endl << "\t";
-        Rcpp::Rcout << state.c_i << std::endl;
+        std::cout << "Cluster assignments: " << std::endl << "\t";
+        std::cout << state.c_i << std::endl;
     }
-
+    std::cout << std::endl;
     if(interest == 2 || interest == -1){
-        Rcpp::Rcout << "Centers: " << std::endl<< "\t";
+        std::cout << "Centers: " << std::endl<< "\t";
         for (int i = 0; i < state.center.length(); i++) {
-            Rcpp::Rcout << "Cluster "<< i << " :"<< std::setprecision(5)<< as<NumericVector>(state.center[i]) << std::endl;
+            std::cout << "Cluster "<< i << " :"<< std::setprecision(5)<< as<NumericVector>(state.center[i]) << std::endl;
             if(i < state.center.length() - 1)
-                Rcpp::Rcout << "\t";
+                std::cout << "\t";
         }
     }
-
+    std::cout << std::endl;
     if(interest == 3 || interest == -1){
-        Rcpp::Rcout << "Dispersions: " << std::endl << "\t";
+        std::cout << "Dispersions: " << std::endl << "\t";
         for (int i = 0; i < state.sigma.length(); i++) {
-            Rcpp::Rcout << "Cluster "<< i << ": "<< as<NumericVector>(state.sigma[i]) << std::endl;
-            if(i < state.center.length() - 1)
-                Rcpp::Rcout << "\t";
+            std::cout << "Cluster "<< i << ": "<< as<NumericVector>(state.sigma[i]) << std::endl;
+            if(i < state.sigma.length() - 1)
+                std::cout << "\t";
         }
     }
+    std::cout << std::endl;
+    if(interest == 4 || interest == -1){
+       std::cout << "Number of Unique classes: " <<  state.total_cls <<std::endl << "\t";
+    }
+    std::cout << std::endl;
 }
 
 void print_progress_bar(int progress, int total, int bar_width = 50) {
@@ -304,7 +311,7 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
 
     IntegerVector uni_clas = unique_classes(state.c_i);
     int k_minus = unique_classes_without_i.length();
-    int h = k_minus + m; 
+    //int h = k_minus + m; 
     int m_temp = uni_clas.length() == k_minus ? m : m - 1;
     NumericVector temp_center = as<List>(state.center)[state.c_i[index_i]];
     NumericVector temp_sigma = as<List>(state.sigma)[state.c_i[index_i]];
@@ -501,7 +508,6 @@ void restricted_gibbs_sampler(internal_state & state, int idx1, int idx2, std::v
 
     // Create a vector of unique classes
     IntegerVector unique_cls = unique_classes(state.c_i);
-    int num_cls = unique_cls.length();
     
     // Extract cluster of the first observation
     int cls1 = state.c_i[idx1];
@@ -801,7 +807,8 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
 	do {
     		obs_2_idx = dis(gen);
 	} while (obs_2_idx == obs_1_idx);
-    std::cout<<"[DEBUG] Osservazioni scelte: " << obs_1_idx<<" e  " << obs_2_idx << std::endl;
+    std::cout<<"[DEBUG] Osservazioni scelte: " << obs_1_idx << " e  " << obs_2_idx << std::endl;
+    std::cout<<"[DEBUG] Cluster a cui appartengono:  " << state.c_i[obs_1_idx] << " e  " << state.c_i[obs_2_idx] << std::endl;
 	
 	// --------------- Step 2 ---------------
 	// Create S the set of idx of obs in the same cluster of obs_1 or obs_2
@@ -816,8 +823,8 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
             S.push_back(i);
         }
     }
-    
-	std::cout<<"[DEBUG] Cluster a cui appartengono: " << state.c_i[obs_1_idx]<<" e  " << state.c_i[obs_2_idx]<< std::endl;
+
+    IntegerVector S_indexes = wrap(S); // R version for indexing
     std::cout<<"[DEBUG] Lunghezza di S: " << S.size() << std::endl;
 	
 	// --------------- Step 3 ---------------
@@ -831,77 +838,85 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
 	List center_L_merge = clone(state.center);
 	List sigma_L_merge = clone(state.sigma);
 	
-    // ----- gamma split popolation -----
+    std::cout<<"[DEBUG] SPLIT - Launch State" <<std::endl;
+    // ----- gamma launch split popolation -----
     if(state.c_i[obs_1_idx] == state.c_i[obs_2_idx]){
-        std::cout<<"[DEBUG] Gamma launch state split creation" <<std::endl;
+        // define new class label
         int lat_cls = unique_classes(state.c_i).length(); 
-        // set the allocation of obs_1_idx to a latent cluster
+        // set the allocation of obs_1_idx to latent cluster
         c_L_split[obs_1_idx] = lat_cls;
-        center_L_split.push_back(R_NilValue);
-        sigma_L_split.push_back(R_NilValue);
+        // directly sample parameter for new class from prior
+        center_L_split.push_back(sample_center_1_cluster(const_data.attrisize));
+        sigma_L_split.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
     }
-    
+
+    // variable storing cluster labels
+    int c_L_split_cls_1 = c_L_split[obs_1_idx];
+    int c_L_split_cls_2 = c_L_split[obs_2_idx];
+
     // randomly allocate with equal probs data in S between cls-1 and cls-2
-    for(unsigned datum = 0; datum < S.size(); ++datum){
-        // assignment with equal probs
-        c_L_split[S[datum]] = sample(2, 1, true)[0] == 1 ? c_L_split[obs_1_idx] : c_L_split[obs_2_idx];
-    }
+    c_L_split[S_indexes] = sample(IntegerVector::create(c_L_split_cls_1, c_L_split_cls_2), S.size(), true);
+
+    // draw a new value for the center from prior
+    center_L_split[c_L_split_cls_2] = sample_center_1_cluster(const_data.attrisize);
     
-    // Draw a new value for the centers
-    center_L_split[c_L_split[obs_1_idx]] = sample_center_1_cluster(const_data.attrisize);
-    center_L_split[c_L_split[obs_2_idx]] = sample_center_1_cluster(const_data.attrisize);
-    
-    // draw a new value for the sigma
-    sigma_L_split[c_L_split[obs_1_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
-    sigma_L_split[c_L_split[obs_2_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+    // draw a new value for the sigma from prior
+    sigma_L_split[c_L_split_cls_2] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
     
     
     // aux state for the split
-    internal_state state_split = {c_L_split, center_L_split, sigma_L_split, static_cast<int>(unique_classes(c_L_split).length())};
+    internal_state state_split_t = {c_L_split, center_L_split, sigma_L_split, static_cast<int>(unique_classes(c_L_split).length())};
+    internal_state state_split = state_split_t;
 
+    std::cout << "[DEBUG] SPLIT - Launch Restricted Gibbs Sampling" << std::endl;
     // Intermediate restricted Gibbs Sampler on c_L_split
     for(int iter = 0; iter < t; ++iter ){
-        restricted_gibbs_sampler(state_split, obs_1_idx, obs_2_idx, S, const_data);
-        // update both cls new center and sigma 
-        update_centers(state_split, const_data);
-        std::cout<<"[DEBUG] after update center" <<std::endl;
-        update_sigma(state_split.sigma, state_split.center, state_split.c_i, const_data);
-        std::cout<<"[DEBUG] after update sima" <<std::endl;
+        restricted_gibbs_sampler(state_split_t, obs_1_idx, obs_2_idx, S, const_data);
+        update_centers(state_split_t, const_data);
+        update_sigma(state_split_t.sigma, state_split_t.center, state_split_t.c_i, const_data);
     }
 
-    std::cout << "[DEBUG] Gamma launch state split Restricted Gibbs sampling passed" << std::endl;
-            
+    // clean split state
+    clean_var(state_split, state_split_t, unique_classes(state_split_t.c_i), const_data.attrisize);
+
+    std::cout << "[DEBUG] SPLIT - state" << std::endl;
+    print_internal_state(state_split);
+
+    std::cout<<"[DEBUG] MERGE - Launch State" <<std::endl;        
 	// ----- gamma merge popolation -----
+    int c_L_merge_cls = c_L_merge[obs_2_idx];
+
     if(state.c_i[obs_1_idx] != state.c_i[obs_2_idx]){
-        std::cout<<"[DEBUG] Gamma launch state merge creation" <<std::endl;
         // set the allocation of obs_1_idx equal to the cls of obs_2 (c_j)
-        c_L_merge[obs_1_idx] = state.c_i[obs_2_idx];
+        c_L_merge[obs_1_idx] = c_L_merge_cls;
+       // Allocate all the data in S to the cls of obs_2_idx
+        c_L_merge[S_indexes] = c_L_merge_cls; 
     }
 
-    // Allocate all the data in S to the cls of obs_2_idx
-    for(unsigned datum = 0; datum < S.size(); ++datum){
-        // assignment with equal probs
-        c_L_merge[S[datum]] = state.c_i[obs_2_idx];
-    }
-    
-    // Draw a new value for the centers
-    center_L_merge[c_L_merge[obs_2_idx]] = sample_center_1_cluster(const_data.attrisize);
+    // draw a new value for the centers
+    center_L_merge[c_L_merge_cls] = sample_center_1_cluster(const_data.attrisize);
     
     // draw a new value for the sigma
-    sigma_L_merge[c_L_merge[obs_2_idx]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
-    
+    sigma_L_merge[c_L_merge_cls] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+
     // aux state for the merge
-    internal_state state_merge = {c_L_merge, center_L_merge, sigma_L_merge, static_cast<int>(unique_classes(c_L_merge).length())};
+    internal_state state_merge_t = {c_L_merge, center_L_merge, sigma_L_merge, static_cast<int>(unique_classes(c_L_merge).length())};
+    internal_state state_merge = state_merge_t;
     
-    std::cout << "[DEBUG] split branch step " << std::endl;
-    // Intermediate restricted Gibbs Sampler on c_L_split
+    std::cout<<"[DEBUG] MERGE - Launch Restricted Gibbs Sampling start" <<std::endl;
+    // Intermediate restricted Gibbs Sampler on c_L_merge
     for(int iter = 0; iter < r; ++iter ){
         // update only merge cls center and sigma 
-        update_centers(state_merge, const_data);
-        update_sigma(state_merge.sigma, state_merge.center, state_merge.c_i, const_data);
+        update_centers(state_merge_t, const_data);
+        update_sigma(state_merge_t.sigma, state_merge_t.center, state_merge_t.c_i, const_data);
     }
-    
-	std::cout<<"[DEBUG] Cluster a cui appartengono: " << state.c_i[obs_1_idx]<<" e  " << state.c_i[obs_2_idx]<< std::endl;
+
+    // clean merge state 
+    clean_var(state_merge, state_merge_t, unique_classes(state_merge_t.c_i), const_data.attrisize);
+
+    std::cout << "[DEBUG] MERGE - state" << std::endl;
+    print_internal_state(state_merge);
+
     std::cout << "[DEBUG] Fine Step 3" << std::endl;
     
 	// --------------- Step 4&5 ---------------
@@ -910,12 +925,12 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
 
     // Aux var to store *-state
     internal_state state_star = {IntegerVector(), List(), List(), 0};
-    double acpt_ratio=1;
+    double acpt_ratio=.999;
 
 	if(state.c_i[obs_1_idx] == state.c_i[obs_2_idx]){
-        state_star = {c_L_split, center_L_split, sigma_L_split, static_cast<int>(unique_classes(c_L_split).length())};
+        state_star = state_split;
         std::cout << "[DEBUG] Split branch step 4 & 5" << std::endl;
-		state_star.c_i = clone(c_L_split);
+		//state_star.c_i = clone(c_L_split);
         
 		// ----- (a) - last Restricted Gibbs Sampler -----
 		restricted_gibbs_sampler(state_star, obs_1_idx, obs_2_idx, S, const_data);
@@ -941,13 +956,14 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
 					
 		// Calculate the acceptance ratio
 		acpt_ratio = acceptance_ratio(state, state_star, const_data, q, obs_1_idx, obs_2_idx, S, "split");
+        std::cout << "[DEBUG] SPLIT - acceptance: " << acpt_ratio << std::endl;
     
 	}	
 	else{
         std::cout << "[DEBUG] merge branch step 4 & 5" << std::endl;
-        state_star = {c_L_merge, center_L_merge, sigma_L_merge, static_cast<int>(unique_classes(c_L_merge).length())};
+        state_star = state_merge;
 		// ----- (a) - merge -----
-		state_star.c_i = clone(c_L_merge);
+		//state_star.c_i = clone(c_L_merge);
         
 		// Last restricted Gibbs Sampling to update merge cls parameters
 		update_centers(state_star, const_data);
@@ -970,22 +986,24 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         
 		// Calculate the acceptance ratio
 		acpt_ratio = acceptance_ratio(state, state_star, const_data, q, obs_1_idx, obs_2_idx, S, "merge");
-        std::cout << "[DEBUG] acceptance: " << acpt_ratio << std::endl;
+        std::cout << "[DEBUG] MERGE - acceptance: " << acpt_ratio << std::endl;
 	}
 	
 	// ----- (c) - Metropolis-Hastings step -----
-	// sample if accept or not the MC state stored in c_star
-    /*if(sample(acpt_ratio)){
-        state = state_star;
-    }*/
+	// sample if accept or not the MC state stored in c_star 
+    if(R::runif(0.0, 1.0) < acpt_ratio){
+      state = state_star;
+      std::cout << "[DEBUG] ACCEPTED" << std::endl;
+    }
 
+    print_internal_state(state);
 }
 
 
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
-                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000) {
+                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, bool neal8 = true) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -1029,30 +1047,29 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
     auto start_time = std::chrono::high_resolution_clock::now();
     Rcpp::Rcout << "Starting Markov Chain sampling..." << std::endl;
-    
-    int n_update_latent = 0; 
+     
     for (int iter = 0; iter < iterations + burnin; iter++) {
         if(verbose != 0)
-            std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations << std::endl;
-
-        // Sample new cluster assignments for each observation
-        for (int index_i = 0; index_i < const_data.n; index_i++) {
-            L = unique_classes(state.c_i).length();
-            IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
+            std::cout << std::endl <<"[DEBUG] - Iteration " << iter + 1 << " of " << iterations << std::endl;
+        if(neal8){
+            std::cout << std::endl <<"[DEBUG] - I am in Neal 8 " << std::endl;
+            // Sample new cluster assignments for each observation
+            for (int index_i = 0; index_i < const_data.n; index_i++) {
+                L = unique_classes(state.c_i).length();
+                IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
             
-            // Sample new cluster assignment for observation i
-            sample_allocation(index_i, const_data, state, m, unique_classes_without_i);       
-        } 
-        
-        // Update centers and sigmas
-        update_centers(state, const_data);
-        update_sigma(state.sigma, state.center, state.c_i, const_data);
+                // Sample new cluster assignment for observation i
+                sample_allocation(index_i, const_data, state, m, unique_classes_without_i);       
+            } 
+            
+            // Update centers and sigmas
+            update_centers(state, const_data);
+            update_sigma(state.sigma, state.center, state.c_i, const_data);
 
-        if(verbose == 2){
-            print_internal_state(state);
+            if(verbose == 2){
+                print_internal_state(state);
+            }
         }
-
-        
         // Split and merge step
         std::cout<<"Split and Merge step"<<std::endl;
         split_and_merge(state, const_data);
