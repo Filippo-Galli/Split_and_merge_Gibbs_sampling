@@ -49,45 +49,51 @@ struct aux_data{
     NumericVector w;
 };
 
-namespace debug{
-    template<typename... Args>
-    void print(unsigned int tab_level, const std::string& message, const Args&... args) {
-        std::stringstream ss;
-        
-        // Add tabs based on level
-        for(unsigned int i = 0; i < tab_level; ++i) {
-            ss << '\t';
-        }
-        
-        // Add debug prefix
-        ss << "[DEBUG] ";
-        
-        // Handle the message with potential format specifiers
-        size_t pos = 0;
-        size_t count = 0;
-        std::string temp = message;
-        
-        // Fold expression to process all arguments
-        ((ss << temp.substr(pos, message.find("{}", pos) - pos) 
-            << args
-            , pos = message.find("{}", pos) + 2
-            , count++), ...);
-            
-        // Add any remaining message text
-        ss << message.substr(pos);
-        
-        // Output the final formatted string
-        std::cout << ss.str() << std::endl;
-    }
+namespace debug {
 
-    // Overload for when there are no variables to format
-    inline void print(unsigned int tab_level, const std::string& message) {
-        std::stringstream ss;
-        for(unsigned int i = 0; i < tab_level; ++i) {
-            ss << '\t';
-        }
-        std::cout << ss.str() << "[DEBUG] " << message << std::endl;
+template<typename... Args>
+void print(unsigned int tab_level, const char* func_name, int line, const std::string& message, const Args&... args) {
+    std::stringstream ss;
+    
+    // Add tabs based on level
+    for(unsigned int i = 0; i < tab_level; ++i) {
+        ss << '\t';
     }
+    
+    // Add debug prefix with function name and line number
+    ss << "[DEBUG:" << func_name << ":" << line << "] ";
+    
+    // Handle the message with potential format specifiers
+    size_t pos = 0;
+    size_t count = 0;
+    std::string temp = message;
+    
+    // Fold expression to process all arguments
+    ((ss << temp.substr(pos, message.find("{}", pos) - pos) 
+        << args
+        , pos = message.find("{}", pos) + 2
+        , count++), ...);
+        
+    // Add any remaining message text
+    ss << message.substr(pos);
+    
+    // Output the final formatted string
+    std::cout << ss.str() << std::endl;
+}
+
+// Overload for when there are no variables to format
+inline void print(unsigned int tab_level, const char* func_name, int line, const std::string& message) {
+    std::stringstream ss;
+    for(unsigned int i = 0; i < tab_level; ++i) {
+        ss << '\t';
+    }
+    std::cout << ss.str() << "[DEBUG:" << func_name << ":" << line << "] " << message << std::endl;
+}
+
+// Convenience macro to automatically include function name and line number
+#define DEBUG_PRINT(level, message, ...) \
+    debug::print(level, __func__, __LINE__, message, ##__VA_ARGS__)
+
 }
 
 void print_internal_state(const internal_state& state, int interest = -1) {
@@ -813,8 +819,8 @@ double acceptance_ratio(internal_state & gamma, internal_state & gamma_star, aux
         
         ratioP=log(1.0/alpha)+(Pgammastar - Pgamma);
     }
-    debug::print(3, "ratioP: {}", Pgamma);
-    debug::print(3, "ratioL: {}", ratioL);
+    DEBUG_PRINT(3, "ratioP: {}", Pgamma);
+    DEBUG_PRINT(3, "ratioL: {}", ratioL);
 
     // q arriva da fuori
     qpl= q*exp(ratioP+ratioL);
@@ -830,7 +836,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
 
     // --------------- Step 1 ---------------
     // choose 2 observation random from the data
-    debug::print(0, "Inizio Split and Merge");
+    DEBUG_PRINT(0, "Inizio Split and Merge");
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, const_data.n - 1);
@@ -839,7 +845,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
     do {
         obs_2_idx = dis(gen);
     } while (obs_2_idx == obs_1_idx);
-    debug::print(0, "Osservazioni scelte: {} e {}", obs_1_idx, obs_2_idx);
+    DEBUG_PRINT(0, "Osservazioni scelte: {} e {}", obs_1_idx, obs_2_idx);
     
     // --------------- Step 2 ---------------
     // Create S the set of idx of obs in the same cluster of obs_1 or obs_2
@@ -855,8 +861,8 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         }
     }
     
-    debug::print(0, "Cluster a cui appartengono: {} e {}", state.c_i[obs_1_idx], state.c_i[obs_2_idx]);
-    debug::print(0, "Lunghezza di S: {}", S.size());
+    DEBUG_PRINT(0, "Cluster a cui appartengono: {} e {}", state.c_i[obs_1_idx], state.c_i[obs_2_idx]);
+    DEBUG_PRINT(0, "Lunghezza di S: {}", S.size());
     
     // --------------- Step 3 ---------------
     // gamma split
@@ -871,7 +877,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
     
     // ----- gamma split popolation -----
     if(state.c_i[obs_1_idx] == state.c_i[obs_2_idx]){
-        debug::print(0, "Gamma launch state split creation");
+        DEBUG_PRINT(0, "Gamma launch state split creation");
         int lat_cls = unique_classes(state.c_i).length(); 
         // set the allocation of obs_1_idx to a latent cluster
         c_L_split[obs_1_idx] = lat_cls;
@@ -904,11 +910,11 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         update_sigma(state_split.sigma, state_split.center, state_split.c_i, const_data);
     }
 
-    debug::print(0, "Gamma launch state split Restricted Gibbs sampling passed");
+    DEBUG_PRINT(0, "Gamma launch state split Restricted Gibbs sampling passed");
             
     // ----- gamma merge popolation -----
     if(state.c_i[obs_1_idx] != state.c_i[obs_2_idx]){
-        debug::print(0, "Gamma launch state merge creation");
+        DEBUG_PRINT(0, "Gamma launch state merge creation");
         // set the allocation of obs_1_idx equal to the cls of obs_2 (c_j)
         c_L_merge[obs_1_idx] = state.c_i[obs_2_idx];
     }
@@ -928,7 +934,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
     // aux state for the merge
     internal_state state_merge = {c_L_merge, center_L_merge, sigma_L_merge, static_cast<int>(unique_classes(c_L_merge).length())};
     
-    debug::print(0, "split branch step");
+    DEBUG_PRINT(0, "split branch step");
     // Intermediate restricted Gibbs Sampler on c_L_split
     for(int iter = 0; iter < r; ++iter ){
         // update only merge cls center and sigma 
@@ -936,8 +942,8 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         update_sigma(state_merge.sigma, state_merge.center, state_merge.c_i, const_data);
     }
     
-    debug::print(0, "Cluster a cui appartengono: {} e {}", state.c_i[obs_1_idx], state.c_i[obs_2_idx]);
-    debug::print(0, "Fine Step 3");
+    DEBUG_PRINT(0, "Cluster a cui appartengono: {} e {}", state.c_i[obs_1_idx], state.c_i[obs_2_idx]);
+    DEBUG_PRINT(0, "Fine Step 3");
     
     // --------------- Step 4&5 ---------------
     // variable to store prob
@@ -949,12 +955,12 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
 
     if(state.c_i[obs_1_idx] == state.c_i[obs_2_idx]){
         state_star = {c_L_split, center_L_split, sigma_L_split, static_cast<int>(unique_classes(c_L_split).length())};
-        debug::print(0, "Split branch step 4 & 5");
+        DEBUG_PRINT(0, "Split branch step 4 & 5");
         state_star.c_i = clone(c_L_split);
         
         // ----- (a) - last Restricted Gibbs Sampler -----
         restricted_gibbs_sampler(state_star, obs_1_idx, obs_2_idx, S, const_data);
-        debug::print(1, "split branch step 4 & 5 Restricted Gibbs sampling passed");
+        DEBUG_PRINT(1, "split branch step 4 & 5 Restricted Gibbs sampling passed");
         update_centers(state_star, const_data);
         update_sigma(state_star.sigma, state_star.center, state_star.c_i, const_data);
 
@@ -962,23 +968,23 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         // Equation (15)
         // Numerator
         q += probgs_phi(state, state_merge, const_data, S, obs_1_idx);
-        debug::print(1, "Numerator passed: {}", q);
+        DEBUG_PRINT(1, "Numerator passed: {}", q);
         // Denominator
         q -= probgs_c_i(state_star, state_split, const_data, S, obs_1_idx, obs_2_idx);
-        debug::print(1, "computation of log(q) after probgs_c_i: {}", q);
+        DEBUG_PRINT(1, "computation of log(q) after probgs_c_i: {}", q);
         q -= probgs_phi(state_star, state_split, const_data, S, obs_1_idx);
         q -= probgs_phi(state_star, state_split, const_data, S, obs_2_idx);
 
-        debug::print(1, "computation of log(q) passed: {}", q);
+        DEBUG_PRINT(1, "computation of log(q) passed: {}", q);
         q = std::exp(q);
-        debug::print(1, "Computation of q passed: {}", q);
+        DEBUG_PRINT(1, "Computation of q passed: {}", q);
                     
         // Calculate the acceptance ratio
         acpt_ratio = acceptance_ratio(state, state_star, const_data, q, obs_1_idx, obs_2_idx, S, "split");
-        debug::print(1, "acceptance: {}", acpt_ratio);
+        DEBUG_PRINT(1, "acceptance: {}", acpt_ratio);
     }    
     else{
-        debug::print(0, "merge branch step 4 & 5");
+        DEBUG_PRINT(0, "merge branch step 4 & 5");
         state_star = {c_L_merge, center_L_merge, sigma_L_merge, static_cast<int>(unique_classes(c_L_merge).length())};
         // ----- (a) - merge -----
         state_star.c_i = clone(c_L_merge);
@@ -991,20 +997,20 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         // Equation (16)
         // Numerator
         q += probgs_c_i(state, state_split, const_data, S, obs_1_idx, obs_2_idx);   
-        debug::print(1, "computation of log(q) after probgs_c_i: {}", q);     
+        DEBUG_PRINT(1, "computation of log(q) after probgs_c_i: {}", q);     
         q += probgs_phi(state, state_split, const_data, S, obs_1_idx);
         q += probgs_phi(state, state_split, const_data, S, obs_2_idx);
-        debug::print(1, "Numerator passed: {}", q);
+        DEBUG_PRINT(1, "Numerator passed: {}", q);
         // Denominator
         q -= probgs_phi(state_star, state_merge, const_data, S, obs_1_idx);
         
-        debug::print(1, "computation of log(q) passed: {}", q);
+        DEBUG_PRINT(1, "computation of log(q) passed: {}", q);
         q = std::exp(q);
-        debug::print(1, "Computation of q passed: {}", q);
+        DEBUG_PRINT(1, "Computation of q passed: {}", q);
         
         // Calculate the acceptance ratio
         acpt_ratio = acceptance_ratio(state, state_star, const_data, q, obs_1_idx, obs_2_idx, S, "merge");
-        debug::print(1, "acceptance: {}", acpt_ratio);
+        DEBUG_PRINT(1, "acceptance: {}", acpt_ratio);
     }
     
     // ----- (c) - Metropolis-Hastings step -----
