@@ -543,6 +543,30 @@ double compute_loglikelihood(internal_state & state, aux_data & const_data) {
     return loglikelihood;
 }
 
+double loglikelihood_Hamming(const internal_state & state, int c, const aux_data & const_data) {
+    /**
+     * @brief loglikelihood for observation in cluster c 
+     * @note could be made that eval it for two cluster at time
+     */
+    double loglikelihood = 0.0;
+
+    // cluster parameter
+    NumericVector center = as<NumericVector>(state.center[c]);
+    NumericVector sigma = as<NumericVector>(state.sigma[c]);
+
+    // Compute likelihood 
+    for (int i = 0; i < const_data.n; i++) {
+        // for observation in cluster c
+        if(state.c_i[i] == c){
+            for (int j = 0; j < const_data.attrisize.length(); j++) {
+                loglikelihood += dhamming(const_data.data(i, j), center[j], sigma[j], const_data.attrisize[j], true);
+            }
+        }
+    }
+    
+    return loglikelihood;
+}
+
 void split_restricted_gibbs_sampler(internal_state & state, int i_1, int i_2, const std::vector<int> & S, const aux_data & const_data) {
     /**
      * @brief Restricted Gibbs Sampler between the cluster of two observations
@@ -552,7 +576,7 @@ void split_restricted_gibbs_sampler(internal_state & state, int i_1, int i_2, co
      * @param S Vector of indices of observations in the same cluster of i_1 or i_2
      * @param const_data Auxiliary data for the MCMC algorithm
      */
-    
+
     // Extract cluster of the first observation
     int cls1 = state.c_i[i_1];
     NumericVector center1 = as<NumericVector>(state.center[cls1]);
@@ -570,7 +594,7 @@ void split_restricted_gibbs_sampler(internal_state & state, int i_1, int i_2, co
     NumericVector sigma(const_data.attrisize.length());
     int cls;
     int n_s_cls;
-
+    
     for (int s : S) {
         // extract datum at s
         y_s = const_data.data(s, _);
@@ -611,14 +635,14 @@ void split_restricted_gibbs_sampler(internal_state & state, int i_1, int i_2, co
     }
 }
 
-int fact(int n){
+int lfact(int n){
+    /**
+     * @brief logfactorial n
+     * @note maybe already exist but faster?
+     */
     if (n < 0) {
         std::cerr<<"numero negativo nel fattoriale"<<std::endl;
     }
-    //if (n == 0 || n == 1) {
-    //    return 1;
-    //}
-    //return n * fact(n - 1);
 
     double result = 0;
     do{
@@ -628,30 +652,40 @@ int fact(int n){
     return result;
 }
 
-int cls_elem(internal_state & gamma, int k){
-    int f=0;
-    for (int i=0; i<gamma.c_i.length(); i++){
-        if (gamma.c_i[i]==k) 
+int cls_elem(const internal_state & state, int c){
+    /**
+     * @brief number of element in cluster c
+     * @note possible upgrade - work only on S indexes
+     */
+    int f = 0;
+    for (int i = 0; i < state.c_i.length(); i++){ 
+        if (state.c_i[i] == c) 
             f++;
     }
     return f;
 }
 
-double logdensity_geom_inv_gamma(double x, double v, double w, double m){
-    double K = norm_const(v, w, m); 
-    return log(K) - (v + w)*log(1 + (m - 1)/std::exp(1/x)) - ((w + 1)/x) - 2*log(x);
+double logdensity_hig(double sigmaj, double v, double w, double m){
+    /**
+     * @brief logdensity of hig(v,w,m)(sigmaj)
+     */
+    double K = norm_const(v ,w, m); 
+    return log(K) - (v + 1)/sigmaj - (v+w)*log(1+exp(-1/sigmaj)*(m-1)) - 2*log(sigmaj);
+
 }
 
-double priors(internal_state & gamma, int obs_index, aux_data & const_data){
-    int ci=gamma.c_i[obs_index];
-    NumericVector sigmap = as<List>(gamma.sigma)[ci];
+double priors(const internal_state & state, int c, const aux_data & const_data){
+    /**
+     * @brief prior of the parameters associated to cluster c 
+     */
+
+    NumericVector sigma = as<List>(state.sigma)[c];
 
     double priorg=0;
-    for (int h = 0; h < sigmap.length(); h++){
-        priorg -= log(const_data.attrisize[h]); // densità dell'uniforme è sempre 1/numero_modalità
-        priorg -= logdensity_geom_inv_gamma(sigmap[h], const_data.v[h], const_data.w[h], const_data.attrisize[h]);
+    for (int j = 0; j < sigma.length(); j++){
+        priorg -= log(const_data.attrisize[j]); // densità dell'uniforme è sempre 1/numero_modalità
+        priorg += logdensity_hig(sigma[j], const_data.v[j], const_data.w[j], const_data.attrisize[j]);
     }
-    std::cout << "\t\t[DEBUG] log(priorg): " << priorg << std::endl;
     return priorg;
 }
 
@@ -731,7 +765,7 @@ double probgs_phi(const internal_state & gamma_star, const internal_state & gamm
     //std::cout << "[DEBUG] gamma_star.c_i[choosen_idx]: " << gamma_star.c_i[choosen_idx] <<std::endl;
     //std::cout << "[DEBUG] gamma_star.sigma: " << gamma_star.sigma.size() <<std::endl;
     for (int j=0; j<p; j++){
-        double temp = logdensity_geom_inv_gamma(sig[j], new_v[j], new_w[j], const_data.attrisize[j]);
+        double temp = logdensity_hig(sig[j], new_v[j], new_w[j], const_data.attrisize[j]);
         //std::cout << "\t[DEBUG] temp= " << temp <<std::endl;
         //std::cout << "\t[DEBUG] sig[j]= " << sig[j] <<std::endl;
         sigma_prob += temp;
@@ -811,25 +845,25 @@ double acceptance_ratio(internal_state & gamma, internal_state & gamma_star, aux
     double ratioP=0;
 
     if (star=="split"){
-        Pgammastar += fact(cls_elem(gamma_star, gamma_star.c_i[obs_1_idx]) - 1);
-        Pgammastar += fact(cls_elem(gamma_star,gamma_star.c_i[obs_2_idx]) - 1);
+        Pgammastar += lfact(cls_elem(gamma_star, gamma_star.c_i[obs_1_idx]) - 1);
+        Pgammastar += lfact(cls_elem(gamma_star,gamma_star.c_i[obs_2_idx]) - 1);
         Pgammastar += priors(gamma_star, obs_1_idx, const_data);
         Pgammastar += priors(gamma_star, obs_2_idx, const_data);
 
-        Pgamma=(fact(cls_elem(gamma,gamma.c_i[obs_1_idx])-1))+priors(gamma, obs_1_idx, const_data);
+        Pgamma=(lfact(cls_elem(gamma,gamma.c_i[obs_1_idx])-1))+priors(gamma, obs_1_idx, const_data);
         ratioP=log(alpha)+(Pgammastar-Pgamma);
     }
     if (star=="merge"){
-        Pgamma += fact(cls_elem(gamma,gamma.c_i[obs_1_idx])-1);
+        Pgamma += lfact(cls_elem(gamma,gamma.c_i[obs_1_idx])-1);
         //std::cout << "\t[DEBUG] Pgamma 1: " << Pgamma << std::endl;
-        Pgamma += fact(cls_elem(gamma,gamma.c_i[obs_2_idx])-1);
+        Pgamma += lfact(cls_elem(gamma,gamma.c_i[obs_2_idx])-1);
         //std::cout << "\t[DEBUG] Pgamma 2: " << Pgamma << std::endl;
         Pgamma += priors(gamma, obs_1_idx, const_data);
         //std::cout << "\t[DEBUG] Pgamma 3: " << Pgamma << std::endl;
         Pgamma += priors(gamma, obs_2_idx, const_data);
         //std::cout << "\t[DEBUG] Pgamma finale: " << Pgamma << std::endl;
 
-        Pgammastar += fact(cls_elem(gamma_star,gamma_star.c_i[obs_1_idx])-1);
+        Pgammastar += lfact(cls_elem(gamma_star,gamma_star.c_i[obs_1_idx])-1);
         Pgammastar += priors(gamma_star, obs_1_idx, const_data);
         //std::cout << "\t[DEBUG] Pgammastar 2: " << Pgammastar << std::endl;
         
@@ -874,7 +908,7 @@ internal_state split_launch_state(const std::vector<int> & S, const internal_sta
      * @brief build split launch state
      */
 
-    DEBUG_PRINT(0, "Gamma launch state split creation");
+    DEBUG_PRINT(0, "SPLIT - Gamma launch state split creation");
 
     // gamma split
 	IntegerVector c_L_split = clone(state.c_i);
@@ -908,8 +942,6 @@ internal_state split_launch_state(const std::vector<int> & S, const internal_sta
     // Intermediate restricted Gibbs Sampler on c_L_split
     for(int iter = 0; iter < t; ++iter ){
         split_restricted_gibbs_sampler(state_split, i_1, i_2, S, const_data);
-        DEBUG_PRINT(0, "SPLIT - intermediate state");
-        print_internal_state(state_split,2);
     }
     DEBUG_PRINT(0, "SPLIT - Gamma launch state split Restricted Gibbs sampling passed");
 
@@ -924,7 +956,7 @@ internal_state merge_launch_state(const std::vector<int> & S, const internal_sta
      * @brief merge launch state creation
      */
 
-    DEBUG_PRINT(0, "Gamma launch state merge creation");
+    DEBUG_PRINT(0, "MERGE - Gamma launch state merge creation");
 
     // gamma merge	
 	IntegerVector c_L_merge = clone(state.c_i);
@@ -949,15 +981,13 @@ internal_state merge_launch_state(const std::vector<int> & S, const internal_sta
     internal_state state_merge = {c_L_merge, center_L_merge, sigma_L_merge, static_cast<int>(unique_classes(c_L_merge).length())};
     // clean merge state
     clean_var(state_merge, state_merge, unique_classes(state_merge.c_i), const_data.attrisize);
-    
+
     DEBUG_PRINT(0, "MERGE - Launch Restricted Gibbs Sampling");
     // Intermediate restricted Gibbs Sampler on c_L_merge
     for(int iter = 0; iter < r; ++iter ){
         // update only merge cls center and sigma 
         update_centers(state_merge, const_data);
         update_sigma(state_merge.sigma, state_merge.center, state_merge.c_i, const_data);
-        DEBUG_PRINT(0, "MERGE - state");
-        print_internal_state(state_merge,2);
     }
 
     DEBUG_PRINT(0, "MERGE - Gamma launch state merge Restricted Gibbs sampling passed");
@@ -966,6 +996,81 @@ internal_state merge_launch_state(const std::vector<int> & S, const internal_sta
     print_internal_state(state_merge,1);
     
     return state_merge;
+}
+
+double split_acc_prob(const internal_state & state_split, const internal_state & state, int i_1, int i_2, const aux_data & const_data){
+    /**
+     * @brief evaluate the acceptance probability for the proposed split state
+     */
+
+    double alpha = const_data.gamma;
+
+    // evaluate prior ratio         
+    double logp = 0;
+    logp += log(alpha);
+    // numerator
+    logp += lfact(cls_elem(state_split, state_split.c_i[i_1]) - 1);
+    logp += lfact(cls_elem(state_split, state_split.c_i[i_2]) - 1);
+    logp += priors(state_split, state_split.c_i[i_1], const_data);
+    logp += priors(state_split, state_split.c_i[i_2], const_data);
+    // denominator
+    logp -= lfact(cls_elem(state, state.c_i[i_1]) - 1);
+    logp -= priors(state, state.c_i[i_1], const_data);
+    DEBUG_PRINT(1, "SPLIT - prior Logratio: {}", logp);
+    DEBUG_PRINT(1, "SPLIT - prior ratio: {}", exp(logp));
+
+    // evaluate likelihood ratio
+    double logl = 0;
+    // numerator
+    logl += loglikelihood_Hamming(state_split, state_split.c_i[i_1], const_data);
+    logl += loglikelihood_Hamming(state_split, state_split.c_i[i_2], const_data);
+    // denominator
+    logl -= loglikelihood_Hamming(state, state.c_i[i_1], const_data);
+
+    DEBUG_PRINT(1, "SPLIT - likelihood Logratio: {}", logl);
+    DEBUG_PRINT(1, "SPLIT - likelihood ratio: {}", exp(logl)); 
+
+    // evaluate proposal ratio
+
+
+
+    return logp;
+}
+
+double merge_acc_prob(const internal_state & state_merge, const internal_state & state, int i_1, int i_2, const aux_data & const_data){
+    /**
+     * @brief evaluate the acceptance probability for the proposed merge state
+     */
+
+    double alpha = const_data.gamma;
+
+    // evaluate prior ratio         
+    double logp = 0;
+    // numerator
+    logp += lfact(cls_elem(state_merge, state_merge.c_i[i_2]) - 1);
+    logp += priors(state_merge, state_merge.c_i[i_2], const_data);
+    // denominator
+    logp -= log(alpha);
+    logp -= lfact(cls_elem(state, state.c_i[i_1]) - 1);
+    logp -= lfact(cls_elem(state, state.c_i[i_2]) - 1);
+    logp -= priors(state, state.c_i[i_1], const_data);
+    logp -= priors(state, state.c_i[i_2], const_data);
+    DEBUG_PRINT(1, "MERGE - prior Logratio: {}", logp);
+    DEBUG_PRINT(1, "MERGE - prior ratio: {}", exp(logp));
+
+    // evaluate likelihood ratio
+    double logl = 0;
+    // numerator
+    logl += loglikelihood_Hamming(state_merge, state_merge.c_i[i_2], const_data);
+    // denominator
+    logl -= loglikelihood_Hamming(state, state.c_i[i_1], const_data);
+    logl -= loglikelihood_Hamming(state, state.c_i[i_2], const_data);
+
+    DEBUG_PRINT(1, "MERGE - likelihood Logratio: {}", logl);
+    DEBUG_PRINT(1, "MERGE - likelihood ratio: {}", exp(logl));
+
+
+    return logp;
 }
 
 void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, int r = 10) {
@@ -1001,28 +1106,27 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
     internal_state merge_launch = merge_launch_state(S, state, const_data, i_1, i_2, r);
 
     DEBUG_PRINT(0, "Lanch states created!");
-    
+
     // --------------- Step 4&5 ---------------
-    // variable to store prob
-    double q = 0;
 
     // Aux var to store *-state
     internal_state state_star = {IntegerVector(), List(), List(), 0};
-    double acpt_ratio = 1;
+    double acpt_ratio = .999;
+
+    // variable to store prob
+    double q = 0;
 
     if(state.c_i[i_1] == state.c_i[i_2]){
         state_star = split_launch;
-        DEBUG_PRINT(0, "Split branch step 4 & 5");
-        //state_star.c_i = clone(c_L_split);
+        DEBUG_PRINT(0, "SPLIT - propose");
         
         // ----- (a) - last Restricted Gibbs Sampler -----
         split_restricted_gibbs_sampler(state_star, i_1, i_2, S, const_data);
-        DEBUG_PRINT(1, "split branch step 4 & 5 Restricted Gibbs sampling passed");
-        update_centers(state_star, const_data);
-        update_sigma(state_star.sigma, state_star.center, state_star.c_i, const_data);
+        DEBUG_PRINT(1, "SPLIT - Final Restricted Gibbs sampling passed");
 
         // ----- (b) - Transition probabilities ----- 
-        // Equation (15)
+        double a = split_acc_prob(state_star, state, i_1, i_2, const_data);
+        /* // Equation (15)
         // Numerator
         q += probgs_phi(state, split_launch, const_data, S, i_1);
         DEBUG_PRINT(1, "Numerator passed: {}", q);
@@ -1039,10 +1143,10 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         // Calculate the acceptance ratio
         acpt_ratio = acceptance_ratio(state, state_star, const_data, q, i_1, i_2, S, "split");
         std::cout << "[DEBUG] SPLIT - acceptance: " << acpt_ratio << std::endl;
-        DEBUG_PRINT(1, "acceptance: {}", acpt_ratio);
+        DEBUG_PRINT(1, "SPLIT - prior ratio: {}", a); */ 
     }    
     else{
-        DEBUG_PRINT(0, "merge branch step 4 & 5");
+        DEBUG_PRINT(0, "MERGE - propose");
         state_star = split_launch;
         // ----- (a) - merge -----
         //state_star.c_i = clone(c_L_merge);
@@ -1050,9 +1154,11 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         // Last restricted Gibbs Sampling to update merge cls parameters
         update_centers(state_star, const_data);
         update_sigma(state_star.sigma, state_star.center, state_star.c_i, const_data);
-        
+        DEBUG_PRINT(1, "MERGE - Final Restricted Gibbs sampling passed");
+
         // ----- (b) - transition probabilities -----
-        // Equation (16)
+        double a = merge_acc_prob(state_star, state, i_1, i_2, const_data);
+        /* // Equation (16)
         // Numerator
         q += probgs_c_i(state, split_launch, const_data, S, i_1, i_2);   
         DEBUG_PRINT(1, "computation of log(q) after probgs_c_i: {}", q);     
@@ -1068,7 +1174,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         
         // Calculate the acceptance ratio
         acpt_ratio = acceptance_ratio(state, state_star, const_data, q, i_1, i_2, S, "merge");
-        DEBUG_PRINT(1, "acceptance: {}", acpt_ratio);
+        DEBUG_PRINT(1, "acceptance: {}", acpt_ratio); */
     }
     
     // ----- (c) - Metropolis-Hastings step -----
