@@ -354,7 +354,7 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
      * @return New cluster assignment for the data point
      */
     // read data point
-    NumericVector x_i = constant_data.data(index_i, _);
+    NumericVector y_i = constant_data.data(index_i, _);
 
     IntegerVector uni_clas = unique_classes(state.c_i);
     int k_minus = unique_classes_without_i.length();
@@ -397,8 +397,8 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
         sigma_k = state_temp.sigma[k]; // prendo le sigma del cluster k
         center_k = state_temp.center[k]; // prendo i centri del cluster k
 
-        for (int j = 0; j < x_i.length(); j++) {
-            Hamming += dhamming(x_i[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true);
+        for (int j = 0; j < y_i.length(); j++) {
+            Hamming += dhamming(y_i[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true);
         }
 
         // Count instances in the z cluster excluding the current point i
@@ -421,8 +421,8 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
         center_k = state_temp.center[k]; // prendo i centri del cluster k
 
         double Hamming = 0;
-        for (int j = 0; j < x_i.length(); j++) {
-            Hamming += dhamming(x_i[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true);
+        for (int j = 0; j < y_i.length(); j++) {
+            Hamming += dhamming(y_i[j], center_k[j], sigma_k[j], constant_data.attrisize[j], true);
         }
 
         // probability calculation for latent clusters 
@@ -543,61 +543,71 @@ double compute_loglikelihood(internal_state & state, aux_data & const_data) {
     return loglikelihood;
 }
 
-void restricted_gibbs_sampler(internal_state & state, int idx1, int idx2, const std::vector<int> & S, const aux_data & const_data) {
+void split_restricted_gibbs_sampler(internal_state & state, int i_1, int i_2, const std::vector<int> & S, const aux_data & const_data) {
     /**
      * @brief Restricted Gibbs Sampler between the cluster of two observations
      * @param state Internal state of the MCMC algorithm
-     * @param idx1 Index of the first chosen observation
-     * @param idx2 Index of the second chosen observation
-     * @param S Vector of indices of observations in the same cluster of idx1 or idx2
+     * @param i_1 Index of the first chosen observation
+     * @param i_2 Index of the second chosen observation
+     * @param S Vector of indices of observations in the same cluster of i_1 or i_2
      * @param const_data Auxiliary data for the MCMC algorithm
      */
-
-    // Create a vector of unique classes
-    IntegerVector unique_cls = unique_classes(state.c_i);
     
     // Extract cluster of the first observation
-    int cls1 = state.c_i[idx1];
+    int cls1 = state.c_i[i_1];
     NumericVector center1 = as<NumericVector>(state.center[cls1]);
     NumericVector sigma1 = as<NumericVector>(state.sigma[cls1]);
 
     // Extract cluster of the second observation
-    int cls2 = state.c_i[idx2];
+    int cls2 = state.c_i[i_2];
     NumericVector center2 = as<NumericVector>(state.center[cls2]);
     NumericVector sigma2 = as<NumericVector>(state.sigma[cls2]);
-    
-    // Update cluster assignments for each observation in S
-    for (unsigned i = 0; i < S.size(); i++) {
-        int obs_idx = S[i];
-        NumericVector x_i = const_data.data(obs_idx, _);
 
-        // Calculate probabilities for the two clusters
-        NumericVector probs(2);
+    // support variable
+    NumericVector y_s;
+    NumericVector probs(2);
+    NumericVector center(const_data.attrisize.length());
+    NumericVector sigma(const_data.attrisize.length());
+    int cls;
+    int n_s_cls;
+
+    for (int s : S) {
+        // extract datum at s
+        y_s = const_data.data(s, _);
+
+        // evaluate probabilities
         for (int k = 0; k < 2; k++) {
-            NumericVector center_k; //correggere inizializzazione
-            NumericVector sigma_k; //correggere inizializzazione
+            // select parameter values of the corresponding cluster
             if(k == 0){
-                center_k = center1;
-                sigma_k = sigma1;
-            } 
-            else {
-                center_k = center2;
-                sigma_k = sigma2;
+                center = center1;
+                sigma = sigma1;
+                cls = cls1;
+            }
+            else{
+                center = center2;
+                sigma = sigma2;
+                cls = cls2;
             }
 
             double Hamming = 0;
-            for (int j = 0; j < x_i.length(); j++) {
-                Hamming += dhamming(x_i[j], center_k[j], sigma_k[j], const_data.attrisize[j], true);
+
+            for (int j = 0; j < y_s.length(); j++) {
+                Hamming += dhamming(y_s[j], center[j], sigma[j], const_data.attrisize[j], true);
             }
 
-            probs[k] = std::exp(Hamming);
+            // Count instances in the cluster excluding the current point s
+            n_s_cls = count_cluster_members(state.c_i, s, cls);
+            
+            probs[k] =  n_s_cls * std::exp(Hamming);
         }
 
         // Normalize probabilities
         probs = probs / sum(probs);
 
-        // Sample new cluster assignment between the two clusters of idx1 and idx2
-        state.c_i[obs_idx] = sample(IntegerVector::create(cls1, cls2), 1, true, probs)[0];
+        // Sample new cluster assignment between the two clusters of i_1 and i_2
+        state.c_i[s] = sample(IntegerVector::create(cls1, cls2), 1, true, probs)[0];
+        update_centers(state, const_data);
+        update_sigma(state.sigma, state.center, state.c_i, const_data);
     }
 }
 
@@ -651,7 +661,7 @@ double probgs_phi(const internal_state & gamma_star, const internal_state & gamm
      * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
      * @param gamma state containing the launch cluster assignment, launch cluster centers, and launch cluster dispersions - paper reference: (c^L, \phi^L)
      * @param const_data auxiliary data for the MCMC algorithm containing the input data matrix, attribute sizes, and hypergeometric parameters
-     * @param S vector of indices of observations in the same cluster of idx1 or idx2
+     * @param S vector of indices of observations in the same cluster of i_1 or i_2
      * @param star string to identify the type of operation (split or merge)
      * @param choosen_idx index of the chosen observation
      */
@@ -732,28 +742,28 @@ double probgs_phi(const internal_state & gamma_star, const internal_state & gamm
     return log(center_prob) + sigma_prob;
 }
 
-double probgs_c_i(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, const int idx1, const int idx2){
+double probgs_c_i(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, const int i_1, const int i_2){
     /**
      * @brief Compute the probability of the cluster assignment - paper reference: P_{GS}(c*|c^L, phi*, y)
      * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
      * @param gamma state containing the launch cluster assignment, launch cluster centers, and launch cluster dispersions - paper reference: (c^L, \phi^L)
      * @param const_data auxiliary data for the MCMC algorithm containing the input data matrix, attribute sizes, and hypergeometric parameters
-     * @param S vector of indices of observations in the same cluster of idx1 or idx2
-     * @param idx1 index of the first chosen observation
-     * @param idx2 index of the second chosen observation
+     * @param S vector of indices of observations in the same cluster of i_1 or i_2
+     * @param i_1 index of the first chosen observation
+     * @param i_2 index of the second chosen observation
      */
 
     // Variable to store the probability of the cluster assignment
     double pgs=1;
 
     // Save cluster centers and dispersions for the two observations
-    NumericVector center_i=gamma_star.center[gamma.c_i[idx1]]; 
-    NumericVector sigma_i=gamma_star.sigma[gamma.c_i[idx1]];
+    NumericVector center_i=gamma_star.center[gamma.c_i[i_1]]; 
+    NumericVector sigma_i=gamma_star.sigma[gamma.c_i[i_1]];
 
-    NumericVector center_j=gamma_star.center[gamma.c_i[idx2]];
-    NumericVector sigma_j=gamma_star.sigma[gamma.c_i[idx2]];
+    NumericVector center_j=gamma_star.center[gamma.c_i[i_2]];
+    NumericVector sigma_j=gamma_star.sigma[gamma.c_i[i_2]];
 
-    // Compute the probability of the cluster assignment without the two observations idx1 and idx2
+    // Compute the probability of the cluster assignment without the two observations i_1 and i_2
     for (unsigned k=0; k<S.size(); k++){
         // extract the k-th observation data point
         NumericVector y_k = const_data.data(k, _);
@@ -763,10 +773,10 @@ double probgs_c_i(const internal_state & gamma_star, const internal_state & gamm
         int nk=count_cluster_members(gamma.c_i, S[k], gamma.c_i[k]);
         
         // Compute the number of elements in the cluster i without the k observation
-        int ni=count_cluster_members(gamma.c_i, S[k], gamma.c_i[idx1]);
+        int ni=count_cluster_members(gamma.c_i, S[k], gamma.c_i[i_1]);
         
         // Compute the number of elements in the cluster j without the k observation
-        int nj=count_cluster_members(gamma.c_i, S[k], gamma.c_i[idx2]);
+        int nj=count_cluster_members(gamma.c_i, S[k], gamma.c_i[i_2]);
         
         
         //std::cout<<"nk, ni, nj: " << nk<<" - "<<ni<<" - "<<nj<< std::endl;
@@ -897,9 +907,9 @@ internal_state split_launch_state(const std::vector<int> & S, const internal_sta
     DEBUG_PRINT(0, "SPLIT - Launch Restricted Gibbs Sampling");
     // Intermediate restricted Gibbs Sampler on c_L_split
     for(int iter = 0; iter < t; ++iter ){
-        restricted_gibbs_sampler(state_split, i_1, i_2, S, const_data);
-        update_centers(state_split, const_data);
-        update_sigma(state_split.sigma, state_split.center, state_split.c_i, const_data);
+        split_restricted_gibbs_sampler(state_split, i_1, i_2, S, const_data);
+        DEBUG_PRINT(0, "SPLIT - intermediate state");
+        print_internal_state(state_split,2);
     }
     DEBUG_PRINT(0, "SPLIT - Gamma launch state split Restricted Gibbs sampling passed");
 
@@ -946,9 +956,11 @@ internal_state merge_launch_state(const std::vector<int> & S, const internal_sta
         // update only merge cls center and sigma 
         update_centers(state_merge, const_data);
         update_sigma(state_merge.sigma, state_merge.center, state_merge.c_i, const_data);
+        DEBUG_PRINT(0, "MERGE - state");
+        print_internal_state(state_merge,2);
     }
 
-    DEBUG_PRINT(0, "MERGE - Gamma launch state split Restricted Gibbs sampling passed");
+    DEBUG_PRINT(0, "MERGE - Gamma launch state merge Restricted Gibbs sampling passed");
 
     DEBUG_PRINT(0, "MERGE - state");
     print_internal_state(state_merge,1);
@@ -1004,7 +1016,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         //state_star.c_i = clone(c_L_split);
         
         // ----- (a) - last Restricted Gibbs Sampler -----
-        restricted_gibbs_sampler(state_star, i_1, i_2, S, const_data);
+        split_restricted_gibbs_sampler(state_star, i_1, i_2, S, const_data);
         DEBUG_PRINT(1, "split branch step 4 & 5 Restricted Gibbs sampling passed");
         update_centers(state_star, const_data);
         update_sigma(state_star.sigma, state_star.center, state_star.c_i, const_data);
@@ -1066,8 +1078,6 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         DEBUG_PRINT(1, "ACCEPTED");
     }
 }
-
-
 
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
