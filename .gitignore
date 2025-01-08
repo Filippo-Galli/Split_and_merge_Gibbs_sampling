@@ -32,5 +32,5 @@
 *.app
 
 # R
-*.RData
-*.Rhistory
+.RData
+.Rhistory
