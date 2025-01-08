@@ -90,10 +90,11 @@ inline void print(unsigned int tab_level, const char* func_name, int line, const
     std::cout << ss.str() << "[DEBUG:" << func_name << ":" << line << "] " << message << std::endl;
 }
 
+void noop(){}
+
 // Convenience macro to automatically include function name and line number
 #define DEBUG_PRINT(level, message, ...) \
-    debug::print(level, __func__, __LINE__, message, ##__VA_ARGS__)
-
+    debug::noop() //debug::print(level, __func__, __LINE__, message, ##__VA_ARGS__)
 }
 
 void print_internal_state(const internal_state& state, int interest = -1) {
@@ -689,13 +690,12 @@ double priors(const internal_state & state, int c, const aux_data & const_data){
     return priorg;
 }
 
-double probgs_phi(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, const int & choosen_idx){
+double logprobgs_phi(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const int & choosen_idx){
     /**
      * @brief Compute the probability of the cluster dispersion and cluster center - paper reference: P_{GS}(\phi*|phi^L, c^L, y)
      * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
      * @param gamma state containing the launch cluster assignment, launch cluster centers, and launch cluster dispersions - paper reference: (c^L, \phi^L)
      * @param const_data auxiliary data for the MCMC algorithm containing the input data matrix, attribute sizes, and hypergeometric parameters
-     * @param S vector of indices of observations in the same cluster of i_1 or i_2
      * @param star string to identify the type of operation (split or merge)
      * @param choosen_idx index of the chosen observation
      */
@@ -707,22 +707,27 @@ double probgs_phi(const internal_state & gamma_star, const internal_state & gamm
     // sembra che abbiano gli stessi parametri, aiuto!
     //print_internal_state(gamma_star,2);
     //print_internal_state(gamma,2);
-    double center_prob=1;
-    double sigma_prob=0;
+    double log_center_prob = 0;
+    double log_sigma_prob=0;
 
     // --------------- Center probs ---------------
     // Compute the uniform probability of the cluster center
-    int p = as<IntegerVector>(gamma_star.center[gamma_star.c_i[choosen_idx]]).length();
-    
-    NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, gamma_star.c_i[choosen_idx], gamma_star);
-    
-    //Rcpp::Rcout << "Sigma *: " << gamma_star.sigma[choosen_idx].length() << std::endl;
-    List prob_centers(Center_prob(data_tmp, gamma_star.sigma[gamma_star.c_i[choosen_idx]], as<NumericVector>(const_data.attrisize)));
 
-    NumericVector centerstar=gamma_star.center[gamma_star.c_i[choosen_idx]];
-    for (int k=0; k<centerstar.length(); k++){
-        NumericVector z=prob_centers[k];
-        center_prob*=z[centerstar[k]-1];
+    // number of attributes
+    int p = const_data.data.ncol();
+    
+    //NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, gamma_star.c_i[choosen_idx], gamma_star);
+    //List prob_centers(Center_prob(data_tmp, gamma_star.sigma[gamma_star.c_i[choosen_idx]], as<NumericVector>(const_data.attrisize)));
+
+    // list of p probalities, each is a vector of probability for center of j-th attribute
+    List prob_centers = Center_prob(const_data.data, gamma.sigma[gamma.c_i[choosen_idx]], as<NumericVector>(const_data.attrisize));
+
+    // center parameter for which calculate probability
+    NumericVector centerstar = gamma_star.center[gamma_star.c_i[choosen_idx]];
+
+    for (int j = 0; j < centerstar.length(); j++){
+        NumericVector z = prob_centers[j]; // center attribute probabilities for component j
+        log_center_prob += log(z[centerstar[j] - 1]); // probability of center attribute to be the actual
     }
     
     // --------------- Sigma probs ---------------
@@ -730,7 +735,7 @@ double probgs_phi(const internal_state & gamma_star, const internal_state & gamm
     
     NumericVector new_w(const_data.attrisize.length());
     NumericVector new_v(const_data.attrisize.length());
-    
+
     // Create indices for rows in this cluster
     IntegerVector cluster_indices;
     int c = gamma_star.c_i[choosen_idx];
@@ -744,11 +749,10 @@ double probgs_phi(const internal_state & gamma_star, const internal_state & gamm
     NumericMatrix cluster_data(cluster_indices.length(), const_data.data.ncol());
     for (int i = 0; i < cluster_indices.length(); ++i) {
         cluster_data(i, _) = const_data.data(cluster_indices[i], _);
-    }
-    //std::cout << "[DEBUG] cluster_data=" << cluster_data.nrow() << "x"<< cluster_data.ncol()<< std::endl;
+    } 
 
     int nm = cluster_indices.length();
-    NumericVector sigmas_cluster = as<NumericVector>(gamma_star.sigma[c]);
+    //NumericVector sigmas_cluster = as<NumericVector>(gamma_star.sigma[c]);
     NumericVector centers_cluster = as<NumericVector>(gamma_star.center[c]);
     
     for (int i = 0; i < const_data.attrisize.length(); ++i ){ // for each attribute
@@ -758,25 +762,18 @@ double probgs_phi(const internal_state & gamma_star, const internal_state & gamm
         new_v[i] = const_data.v[i] + sumdelta;   
     }
     
-    // dhyper_raf in hyperg.cpp
-    NumericVector sig=gamma_star.sigma[gamma_star.c_i[choosen_idx]];
-    //std::cout << "[DEBUG] nm: " << nm <<std::endl;
-    //std::cout << "[DEBUG] choosen_idx: " << choosen_idx <<std::endl;
-    //std::cout << "[DEBUG] gamma_star.c_i[choosen_idx]: " << gamma_star.c_i[choosen_idx] <<std::endl;
-    //std::cout << "[DEBUG] gamma_star.sigma: " << gamma_star.sigma.size() <<std::endl;
+    // eval probability from full conditional
+    NumericVector sig = gamma_star.sigma[gamma_star.c_i[choosen_idx]];
+
     for (int j=0; j<p; j++){
         double temp = logdensity_hig(sig[j], new_v[j], new_w[j], const_data.attrisize[j]);
-        //std::cout << "\t[DEBUG] temp= " << temp <<std::endl;
-        //std::cout << "\t[DEBUG] sig[j]= " << sig[j] <<std::endl;
-        sigma_prob += temp;
+        log_sigma_prob += temp;
     }
-    
-    std::cout << "\t[DEBUG] log sigma_prob: " << sigma_prob <<std::endl;
 
-    return log(center_prob) + sigma_prob;
+    return log_center_prob + log_sigma_prob;
 }
 
-double probgs_c_i(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, const int i_1, const int i_2){
+double logprobgs_c_i(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, const int i_1, const int i_2){
     /**
      * @brief Compute the probability of the cluster assignment - paper reference: P_{GS}(c*|c^L, phi*, y)
      * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
@@ -787,49 +784,100 @@ double probgs_c_i(const internal_state & gamma_star, const internal_state & gamm
      * @param i_2 index of the second chosen observation
      */
 
-    // Variable to store the probability of the cluster assignment
-    double pgs=1;
+    // Variable to store the logprobability of the cluster assignment
+    double logpgs = 0;
 
-    // Save cluster centers and dispersions for the two observations
-    NumericVector center_i=gamma_star.center[gamma.c_i[i_1]]; 
-    NumericVector sigma_i=gamma_star.sigma[gamma.c_i[i_1]];
+    // Extract cluster of the first observation
+    int cls1 = gamma.c_i[i_1];
+    NumericVector center1 = as<NumericVector>(gamma.center[cls1]);
+    NumericVector sigma1 = as<NumericVector>(gamma.sigma[cls1]);
 
-    NumericVector center_j=gamma_star.center[gamma.c_i[i_2]];
-    NumericVector sigma_j=gamma_star.sigma[gamma.c_i[i_2]];
+    // Extract cluster of the second observation
+    int cls2 = gamma.c_i[i_2];
+    NumericVector center2 = as<NumericVector>(gamma.center[cls2]);
+    NumericVector sigma2 = as<NumericVector>(gamma.sigma[cls2]);
 
+    // support variable
+    NumericVector y_s;
+    NumericVector probs(2);
+    NumericVector center(const_data.attrisize.length());
+    NumericVector sigma(const_data.attrisize.length());
+    int cls;
+    int n_s_cls;
+
+    for (int s : S) {
+        // extract datum at s
+        y_s = const_data.data(s, _);
+
+        // evaluate probabilities
+        for (int k = 0; k < 2; k++) {
+            // select parameter values of the corresponding cluster
+            if(k == 0){
+                center = center1;
+                sigma = sigma1;
+                cls = cls1;
+            }
+            else{
+                center = center2;
+                sigma = sigma2;
+                cls = cls2;
+            }
+
+            double Hamming = 0;
+
+            for (int j = 0; j < y_s.length(); j++) {
+                Hamming += dhamming(y_s[j], center[j], sigma[j], const_data.attrisize[j], true);
+            }
+
+            // Count instances in the cluster excluding the current point s
+            n_s_cls = count_cluster_members(gamma.c_i, s, cls);
+            
+            probs[k] =  n_s_cls * std::exp(Hamming);
+        }
+
+        // Normalize probabilities
+        probs = probs / sum(probs);
+
+        int currrent_c = gamma_star.c_i[s] == cls1 ? 0 : 1;
+
+        //  logprob of be assigned to the new state
+        logpgs += log(probs[currrent_c]);
+
+    }
+    /*
     // Compute the probability of the cluster assignment without the two observations i_1 and i_2
-    for (unsigned k=0; k<S.size(); k++){
-        // extract the k-th observation data point
-        NumericVector y_k = const_data.data(k, _);
+    for (unsigned s = 0; s < S.size(); s++){
+        // extract the s-th observation data point
+        NumericVector y_s = const_data.data(s, _);
 
         double num=0, deni=0, denj=0;
-        // Compute the number of elements in the cluster k without the k observation
-        int nk=count_cluster_members(gamma.c_i, S[k], gamma.c_i[k]);
+        // Compute the number of elements in the cluster s without the s observation
+        int ns=count_cluster_members(gamma.c_i, S[s], gamma.c_i[s]);
         
-        // Compute the number of elements in the cluster i without the k observation
-        int ni=count_cluster_members(gamma.c_i, S[k], gamma.c_i[i_1]);
+        // Compute the number of elements in the cluster i without the s observation
+        int ni=count_cluster_members(gamma.c_i, S[s], gamma.c_i[i_1]);
         
-        // Compute the number of elements in the cluster j without the k observation
-        int nj=count_cluster_members(gamma.c_i, S[k], gamma.c_i[i_2]);
+        // Compute the number of elements in the cluster j without the s observation
+        int nj=count_cluster_members(gamma.c_i, S[s], gamma.c_i[i_2]);
         
         
-        //std::cout<<"nk, ni, nj: " << nk<<" - "<<ni<<" - "<<nj<< std::endl;
+        //std::cout<<"ns, ni, nj: " << ns<<" - "<<ni<<" - "<<nj<< std::endl;
         
-        // Extract the cluster centers and dispersions for the cluster of k observation
-        NumericVector center_k=gamma_star.center[gamma.c_i[k]];
-        NumericVector sigma_k=gamma_star.sigma[gamma.c_i[k]];
+        // Extract the cluster centers and dispersions for the cluster of s observation
+        NumericVector center_s=gamma_star.center[gamma.c_i[s]];
+        NumericVector sigma_s=gamma_star.sigma[gamma.c_i[s]];
         
-        // Compute the log-Hamming between the k-th observation and the cluster centers
-        for (int j=0; j<y_k.length(); j++){
-            num+=dhamming(y_k[j], center_k[j], sigma_k[j], const_data.attrisize[j], true);
-            deni+=dhamming(y_k[j], center_i[j], sigma_i[j], const_data.attrisize[j], true);
-            denj+=dhamming(y_k[j], center_j[j], sigma_j[j], const_data.attrisize[j], true);
+        // Compute the log-Hamming between the s-th observation and the cluster centers
+        for (int j=0; j<y_s.length(); j++){
+            num+=dhamming(y_s[j], center_s[j], sigma_s[j], const_data.attrisize[j], true);
+            deni+=dhamming(y_s[j], center_i[j], sigma_i[j], const_data.attrisize[j], true);
+            denj+=dhamming(y_s[j], center_j[j], sigma_j[j], const_data.attrisize[j], true);
         }
         // Compute the probability of the cluster assignment
-        pgs*=(nk*std::exp(num))/(ni*std::exp(deni)+nj*std::exp(denj));
+        pgs*=(ns*std::exp(num))/(ni*std::exp(deni)+nj*std::exp(denj));
         
-    }
-    return log(pgs);
+    }*/
+    return logpgs;
 }
 
 double acceptance_ratio(internal_state & gamma, internal_state & gamma_star, aux_data & const_data, double & q, int obs_1_idx, int obs_2_idx, std::vector<int> & S, const std::string & star){
@@ -878,12 +926,13 @@ double acceptance_ratio(internal_state & gamma, internal_state & gamma_star, aux
     return std::min(qpl, 1.0);
 }
 
-void select_observations(int & i_1, int & i_2, std::vector<int> & S, const internal_state & state, int n) {
+void select_observations(const internal_state & state, int & i_1, int & i_2, std::vector<int> & S) {
     /**
      * @brief Building S*
      * @details select indexes of the observation and build the set S 
      * of other indexes of observations belonging to the same clusters
      */
+    int n = state.c_i.size();
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, n-1);
@@ -946,7 +995,7 @@ internal_state split_launch_state(const std::vector<int> & S, const internal_sta
     DEBUG_PRINT(0, "SPLIT - Gamma launch state split Restricted Gibbs sampling passed");
 
     DEBUG_PRINT(0, "SPLIT - state");
-    print_internal_state(state_split,1);
+    //print_internal_state(state_split,1);
 
     return state_split;
 }
@@ -993,12 +1042,12 @@ internal_state merge_launch_state(const std::vector<int> & S, const internal_sta
     DEBUG_PRINT(0, "MERGE - Gamma launch state merge Restricted Gibbs sampling passed");
 
     DEBUG_PRINT(0, "MERGE - state");
-    print_internal_state(state_merge,1);
+    //print_internal_state(state_merge,1);
     
     return state_merge;
 }
 
-double split_acc_prob(const internal_state & state_split, const internal_state & state, int i_1, int i_2, const aux_data & const_data){
+double split_acc_prob(const internal_state & state_split, const internal_state & state, const internal_state & split_launch, const internal_state & merge_launch, const std::vector<int> & S, int i_1, int i_2, const aux_data & const_data){
     /**
      * @brief evaluate the acceptance probability for the proposed split state
      */
@@ -1031,13 +1080,25 @@ double split_acc_prob(const internal_state & state_split, const internal_state &
     DEBUG_PRINT(1, "SPLIT - likelihood ratio: {}", exp(logl)); 
 
     // evaluate proposal ratio
+    double logq = 0;
+    // numerator
+    logq += logprobgs_phi(state, merge_launch, const_data, i_1);
+    // denominator
+    logq -= logprobgs_phi(state_split, split_launch, const_data, i_1);
+    logq -= logprobgs_phi(state_split, split_launch, const_data, i_2);
+    logq -= logprobgs_c_i(state_split, split_launch, const_data, S, i_1, i_2);
 
+    DEBUG_PRINT(1, "SPLIT - proposal Logratio: {}", logq);
+    DEBUG_PRINT(1, "SPLIT - proposal ratio: {}", exp(logq));
 
+    double tot_ratio = logp + logl + logq;
 
-    return logp;
+    DEBUG_PRINT(2, "SPLIT - final ratio: {}",exp(tot_ratio));
+
+    return std::min(exp(tot_ratio), 1.0);
 }
 
-double merge_acc_prob(const internal_state & state_merge, const internal_state & state, int i_1, int i_2, const aux_data & const_data){
+double merge_acc_prob(const internal_state & state_merge, const internal_state & state, const internal_state & split_launch, const internal_state & merge_launch, const std::vector<int> & S, int i_1, int i_2, const aux_data & const_data){
     /**
      * @brief evaluate the acceptance probability for the proposed merge state
      */
@@ -1069,8 +1130,23 @@ double merge_acc_prob(const internal_state & state_merge, const internal_state &
     DEBUG_PRINT(1, "MERGE - likelihood Logratio: {}", logl);
     DEBUG_PRINT(1, "MERGE - likelihood ratio: {}", exp(logl));
 
+    // evaluate proposal ratio
+    double logq = 0;
+    // numerator
+    logq += logprobgs_phi(state, split_launch, const_data, i_1);
+    logq += logprobgs_phi(state, split_launch, const_data, i_2);
+    logq += logprobgs_c_i(state, split_launch, const_data, S, i_1, i_2);
+    // denominator
+    logq -= logprobgs_phi(state_merge, merge_launch, const_data, i_2);
 
-    return logp;
+    DEBUG_PRINT(1, "MERGE - proposal Logratio: {}", logq);
+    DEBUG_PRINT(1, "MERGE - proposal ratio: {}", exp(logq));
+
+    double tot_ratio = logp + logl + logq;
+
+    DEBUG_PRINT(2, "SPLIT - final ratio: {}",exp(tot_ratio));
+
+    return std::min(exp(tot_ratio), 1.0);
 }
 
 void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, int r = 10) {
@@ -1092,7 +1168,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
     std::vector<int> S;
 
     // perform Step 1 , Step 2
-    select_observations(i_1, i_2, S, state, const_data.n);
+    select_observations(state, i_1, i_2, S);
     
     DEBUG_PRINT(0, "Selected observations: {} , {}", i_1, i_2);
 	DEBUG_PRINT(1, "Cluster a cui appartengono: {} , {}", state.c_i[i_1], state.c_i[i_2]);
@@ -1114,7 +1190,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
     double acpt_ratio = .999;
 
     // variable to store prob
-    double q = 0;
+    //double q = 0;
 
     if(state.c_i[i_1] == state.c_i[i_2]){
         state_star = split_launch;
@@ -1125,7 +1201,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         DEBUG_PRINT(1, "SPLIT - Final Restricted Gibbs sampling passed");
 
         // ----- (b) - Transition probabilities ----- 
-        double a = split_acc_prob(state_star, state, i_1, i_2, const_data);
+        acpt_ratio = split_acc_prob(state_star, state, split_launch, merge_launch, S, i_1, i_2, const_data);
         /* // Equation (15)
         // Numerator
         q += probgs_phi(state, split_launch, const_data, S, i_1);
@@ -1157,7 +1233,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
         DEBUG_PRINT(1, "MERGE - Final Restricted Gibbs sampling passed");
 
         // ----- (b) - transition probabilities -----
-        double a = merge_acc_prob(state_star, state, i_1, i_2, const_data);
+        acpt_ratio = merge_acc_prob(state_star, state, split_launch, merge_launch, S, i_1, i_2, const_data);
         /* // Equation (16)
         // Numerator
         q += probgs_c_i(state, split_launch, const_data, S, i_1, i_2);   
@@ -1182,6 +1258,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
     if(R::runif(0,1) < acpt_ratio){
         state = state_star;
         DEBUG_PRINT(1, "ACCEPTED");
+        //print_internal_state(state, 1);
     }
 }
 
@@ -1275,6 +1352,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             as<NumericVector>(results["loglikelihood"])[iter - burnin] = loglikelihood;
         }
     }
+    print_internal_state(state,1);
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
     Rcpp::Rcout << std::endl << "Markov Chain sampling completed in: "<< duration.count() << " s"<< std::endl;
