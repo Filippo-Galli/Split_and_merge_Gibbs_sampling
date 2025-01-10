@@ -517,7 +517,7 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
         
         for (int i = 0; i < const_data.attrisize.length(); ++i ){ // for each attribute
             NumericVector col = cluster_data(_, i);
-            double sumdelta = sum(col != centers_cluster[i]);
+            double sumdelta = sum(col == centers_cluster[i]);
             new_w[i] = const_data.w[i] + nm - sumdelta;
             new_v[i] = const_data.v[i] + sumdelta;   
         }
@@ -670,8 +670,8 @@ double logdensity_hig(double sigmaj, double v, double w, double m){
     /**
      * @brief logdensity of hig(v,w,m)(sigmaj)
      */
-    double K = norm_const(v ,w, m); 
-    return log(K) - (v + 1)/sigmaj - (v+w)*log(1+exp(-1/sigmaj)*(m-1)) - 2*log(sigmaj);
+    double K = norm_const(w ,v, m); 
+    return log(K) - (w + 1)/sigmaj - (v+w)*log(1+exp(-1/sigmaj)*(m-1)) - 2*log(sigmaj);
 
 }
 
@@ -757,7 +757,7 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
     
     for (int i = 0; i < const_data.attrisize.length(); ++i ){ // for each attribute
         NumericVector col = cluster_data(_, i);
-        double sumdelta = sum(col != centers_cluster[i]);
+        double sumdelta = sum(col == centers_cluster[i]);
         new_w[i] = const_data.w[i] + nm - sumdelta;
         new_v[i] = const_data.v[i] + sumdelta;   
     }
@@ -1223,7 +1223,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t = 10, 
     }    
     else{
         DEBUG_PRINT(0, "MERGE - propose");
-        state_star = split_launch;
+        state_star = merge_launch;
         // ----- (a) - merge -----
         //state_star.c_i = clone(c_L_merge);
         
