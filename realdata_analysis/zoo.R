@@ -40,7 +40,7 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 ## Obbligatorie per Filippo perché RcppGSL non trova le librerie GSL e nemmeno RcppGSL.h
 # First, use the explicit include path from RcppGSL
 Sys.setenv("PKG_CXXFLAGS" = paste0("-I/home/filippo/R/x86_64-pc-linux-gnu-library/4.4/RcppGSL/include", 
-                                   " -I/usr/local/include"))
+                                   " -I/usr/local/include", "-O3 -Wall -Wextra -pedantic"))
 
 Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-library/4.4/RcppGSL/include"', 
                                    " -I/usr/local/include"))
@@ -52,6 +52,7 @@ u = c(rep(6,12),3,rep(6,3))
 v = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/test.cpp")
+# test Launch
 results <- run_markov_chain(data = zoo, 
                             attrisize = mm, 
                             gamma = 0.68, 
@@ -59,18 +60,20 @@ results <- run_markov_chain(data = zoo,
                             w = u, 
                             verbose = 0, 
                             m = 3, 
-                            iterations = 1000, 
+                            iterations = 2000, 
                             L = 7,
                             c_i = unlist(groundTruth),
                             #c_i = rep(0,101),
                             #c_i = seq(1,101),
                             burnin = 0, 
-                            neal8 = FALSE)
+                            neal8 = TRUE)
+
+
 
 L_plurale <- c(7)
 initial_assignment_bool <- c(TRUE)
-iterations <- 10
-burnin <- 0
+iterations <- 5000
+burnin <- 2000
 m <- 3
 for(l in L_plurale){
   temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
