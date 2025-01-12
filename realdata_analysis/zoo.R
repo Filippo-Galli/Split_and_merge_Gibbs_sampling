@@ -51,28 +51,11 @@ Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 u = c(rep(6,12),3,rep(6,3))
 v = c(rep(0.25,12),0.5,rep(0.25,3))
 
-Rcpp::sourceCpp("../code/test.cpp")
-# test Launch
-results <- run_markov_chain(data = zoo, 
-                            attrisize = mm, 
-                            gamma = 0.68, 
-                            v = v, 
-                            w = u, 
-                            verbose = 0, 
-                            m = 3, 
-                            iterations = 2000, 
-                            L = 7,
-                            c_i = unlist(groundTruth),
-                            #c_i = rep(0,101),
-                            #c_i = seq(1,101),
-                            burnin = 0, 
-                            neal8 = TRUE)
-
-
+Rcpp::sourceCpp("../code/neal_sampler.cpp")
 
 L_plurale <- c(7)
 initial_assignment_bool <- c(TRUE)
-iterations <- 5000
+iterations <- 3000
 burnin <- 2000
 m <- 3
 for(l in L_plurale){
@@ -89,15 +72,20 @@ for(l in L_plurale){
                               iterations = iterations, 
                               L = l, 
                               c_i = unlist(groundTruth), 
-                              burnin = burnin)
+                              #c_i = rep(0,101),
+                              #c_i = seq(1,101),
+                              burnin = burnin,
+                              t = 2, 
+                              r = 2,
+                              split_merge = TRUE)
   result_name = paste(result_name, "init_ass_", sep="")
 
   # Save results
   filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time,".RData", sep = "")
   save(results, file = filename)
   print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
-
 }
+
 
 ### Posterior similarity matrix
 results_dir <- file.path(getwd(), "../results")
@@ -111,6 +99,7 @@ graphics.off()  # Close all graphic devices
 for (file in rdata_files) {
   # Print file name 
   print(file)
+  l <- 7
   load(file)
 
   ### First plot - Posterior distribution of the number of clusters

@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <iomanip>
 
+
 #include <Rcpp.h>
 #include <RcppGSL.h>  // Add this explicit RcppGSL include
 #include <Rinternals.h>
@@ -503,72 +504,56 @@ void update_centers(internal_state & state, const aux_data & const_data, const s
     }
 }
 
-void aux_update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, const aux_data & const_data, const int c){
-    /**
-     * @brief Update sigma for a single cluster
-     * @param sigma List of cluster dispersions
-     * @param centers List of cluster centers
-     * @param c_i Vector of cluster assignments
-     * @param const_data Auxiliary data for the MCMC algorithm
-     * @param c Cluster index
-     * @details This function updates the cluster dispersion for a single cluster
-     */
+void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, 
+                 const aux_data & const_data, const std::vector<int>* clusters_to_update = nullptr) {
+    int num_cls = sigma.length();
     NumericVector new_w(const_data.attrisize.length());
     NumericVector new_v(const_data.attrisize.length());
-
-    // Create indices for rows in this cluster
-    IntegerVector cluster_indices;
-    for (int i = 0; i < c_i.length(); ++i) {
-        if (c_i[i] == c) {
-            cluster_indices.push_back(i);
+    
+    // Determine which clusters to process
+    std::vector<int> clusters;
+    if (clusters_to_update == nullptr) {
+        // If no specific clusters provided, process all clusters
+        clusters.resize(num_cls);
+        for (int i = 0; i < num_cls; i++) {
+            clusters[i] = i;
         }
+    } else {
+        clusters = *clusters_to_update;
     }
     
-    // Extract cluster-specific data
-    NumericMatrix cluster_data(cluster_indices.length(), const_data.data.ncol());
-    for (int i = 0; i < cluster_indices.length(); ++i) {
-        cluster_data(i, _) = const_data.data(cluster_indices[i], _);
-    }
-    
-    int nm = cluster_indices.length();
-    NumericVector sigmas_cluster = as<NumericVector>(sigma[c]);
-    NumericVector centers_cluster = as<NumericVector>(centers[c]);
-    
-    for (int i = 0; i < const_data.attrisize.length(); ++i ){ // for each attribute
-        NumericVector col = cluster_data(_, i);
-        double sumdelta = sum(col == centers_cluster[i]);
-        new_w[i] = const_data.w[i] + nm - sumdelta;
-        new_v[i] = const_data.v[i] + sumdelta;   
-    }
-    sigma[c] = clone(sample_sigma_1_cluster(const_data.attrisize, new_v, new_w));
-}
-
-void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, const aux_data & const_data, const std::vector<int>* cluster_indexes = nullptr) {
-    /**
-     * @brief Update cluster dispersions
-     * @param sigma List of cluster dispersions
-     * @param centers List of cluster centers
-     * @param c_i Vector of cluster assignments
-     * @param const_data Auxiliary data for the MCMC algorithm
-     * @param cluster_indexes Vector of cluster indexes to update (default: nullptr)
-     * @details This function updates the cluster dispersions using the current cluster assignments
-     */
-
-    int num_cls = sigma.length();
-
-    // If no specific clusters specified, update all clusters
-    if (cluster_indexes == nullptr) {
-        for (int c = 0; c < num_cls; c++) { // for each cluster
-            aux_update_sigma(sigma, centers, c_i, const_data, c);
+    // Process each specified cluster
+    for (int c : clusters) {
+        if (c >= num_cls) {
+            warning("Skipping invalid cluster index: %d", c);
+            continue;
         }
-    }
-    // Update only the specified clusters
-    else {
-        for (int c : *cluster_indexes) {
-            if (c >= 0 && c < num_cls) {  // Bounds check
-                aux_update_sigma(sigma, centers, c_i, const_data, c);
+        
+        // Create indices for rows in this cluster
+        IntegerVector cluster_indices;
+        for (int i = 0; i < c_i.length(); ++i) {
+            if (c_i[i] == c) {
+                cluster_indices.push_back(i);
             }
         }
+        
+        // Extract cluster-specific data
+        NumericMatrix cluster_data(cluster_indices.length(), const_data.data.ncol());
+        for (int i = 0; i < cluster_indices.length(); ++i) {
+            cluster_data(i, _) = const_data.data(cluster_indices[i], _);
+        }
+        
+        int nm = cluster_indices.length();
+        NumericVector sigmas_cluster = as<NumericVector>(sigma[c]);
+        NumericVector centers_cluster = as<NumericVector>(centers[c]);
+        
+        for (int i = 0; i < const_data.attrisize.length(); ++i) {
+            NumericVector col = cluster_data(_, i);
+            double sumdelta = sum(col != centers_cluster[i]);
+            new_w[i] = const_data.w[i] + nm - sumdelta;
+            new_v[i] = const_data.v[i] + sumdelta;   
+        }
+        sigma[c] = clone(sample_sigma_1_cluster(const_data.attrisize, new_v, new_w));
     }
 }
 
@@ -1201,7 +1186,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t, int r
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
-                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, bool neal8 = true) {
+                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool split_merge = true) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -1261,27 +1246,28 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     for (int iter = 0; iter < iterations + burnin; iter++) {
         if(verbose != 0)
             std::cout << std::endl <<"[DEBUG] - Iteration " << iter + 1 << " of " << iterations << std::endl;
-        if(neal8){
-            // Sample new cluster assignments for each observation
-            for (int index_i = 0; index_i < const_data.n; index_i++) {
-                L = unique_classes(state.c_i).length();
-                IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
-            
-                // Sample new cluster assignment for observation i
-                sample_allocation(index_i, const_data, state, m, unique_classes_without_i);       
-            } 
-            
-            // Update centers and sigmas
-            update_centers(state, const_data);
-            update_sigma(state.sigma, state.center, state.c_i, const_data);
-
-            if(verbose == 2){
-                print_internal_state(state);
-            }
-        }
         
+        // Sample new cluster assignments for each observation
+        for (int index_i = 0; index_i < const_data.n; index_i++) {
+            L = unique_classes(state.c_i).length();
+            IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
+        
+            // Sample new cluster assignment for observation i
+            sample_allocation(index_i, const_data, state, m, unique_classes_without_i);       
+        } 
+        
+        // Update centers and sigmas
+        update_centers(state, const_data);
+        update_sigma(state.sigma, state.center, state.c_i, const_data);
+
+        if(verbose == 2){
+            print_internal_state(state);
+        }
+           
         // Split and merge step
-        split_and_merge(state, const_data, 10, 10, acpt_ratio, accepted, split_n, merge_n);
+        if(split_merge){
+            split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n);
+        }
 
         // Calculate likelihood
         double loglikelihood = compute_loglikelihood(state, const_data);
