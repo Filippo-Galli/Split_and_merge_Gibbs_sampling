@@ -22,6 +22,56 @@
 #include <hyperg.cpp>
 using namespace Rcpp;
 
+
+
+namespace debug {
+
+template<typename... Args>
+void print(unsigned int tab_level, const char* func_name, int line, const std::string& message, const Args&... args) {
+    std::stringstream ss;
+    
+    // Add tabs based on level
+    for(unsigned int i = 0; i < tab_level; ++i) {
+        ss << '\t';
+    }
+    
+    // Add debug prefix with function name and line number
+    ss << "[DEBUG:" << func_name << ":" << line << "] ";
+    
+    // Handle the message with potential format specifiers
+    size_t pos = 0;
+    size_t count = 0;
+    std::string temp = message;
+    
+    // Fold expression to process all arguments
+    ((ss << temp.substr(pos, message.find("{}", pos) - pos) 
+        << args
+        , pos = message.find("{}", pos) + 2
+        , count++), ...);
+        
+    // Add any remaining message text
+    ss << message.substr(pos);
+    
+    // Output the final formatted string
+    std::cout << ss.str() << std::endl;
+}
+
+// Overload for when there are no variables to format
+inline void print(unsigned int tab_level, const char* func_name, int line, const std::string& message) {
+    std::stringstream ss;
+    for(unsigned int i = 0; i < tab_level; ++i) {
+        ss << '\t';
+    }
+    std::cout << ss.str() << "[DEBUG:" << func_name << ":" << line << "] " << message << std::endl;
+}
+
+// Convenience macro to automatically include function name and line number
+#define DEBUG_PRINT(level, message, ...) \
+    debug::print(level, __func__, __LINE__, message, ##__VA_ARGS__)
+
+}
+
+
 struct internal_state {
     /**
      * @brief Internal state of the MCMC algorithm
@@ -217,7 +267,7 @@ NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize, const Nume
     NumericVector sigma(attrisize.length());
 
     for (int i = 0; i < attrisize.length(); i++) {
-        sigma[i] = rhyper_sig(1, v[i], w[i], attrisize[i])[0];
+        sigma[i] = rhyper_sig(1, w[i], v[i], attrisize[i])[0];
     } 
 
     return sigma;
@@ -498,7 +548,7 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
         
         for (int i = 0; i < const_data.attrisize.length(); ++i) {
             NumericVector col = cluster_data(_, i);
-            double sumdelta = sum(col != centers_cluster[i]);
+            double sumdelta = sum(col == centers_cluster[i]);
             new_w[i] = const_data.w[i] + nm - sumdelta;
             new_v[i] = const_data.v[i] + sumdelta;   
         }
@@ -609,6 +659,10 @@ int lfact(int n){
     }
 
     double result = 0;
+    if (n==0){
+        return result;
+    }
+
     do{
         result += std::log(n);
         n--;
@@ -962,8 +1016,8 @@ double split_acc_prob(const internal_state & state_split, const internal_state &
     // denominator
     logp -= lfact(cls_elem(state, state.c_i[i_1]) - 1);
     logp -= priors(state, state.c_i[i_1], const_data);
-    //DEBUG_PRINT(1, "SPLIT - prior Logratio: {}", logp);
-    //DEBUG_PRINT(1, "SPLIT - prior ratio: {}", exp(logp));
+    DEBUG_PRINT(1, "SPLIT - prior Logratio: {}", logp);
+    DEBUG_PRINT(1, "SPLIT - prior ratio: {}", exp(logp));
 
     // evaluate likelihood ratio
     double logl = 0;
@@ -973,8 +1027,8 @@ double split_acc_prob(const internal_state & state_split, const internal_state &
     // denominator
     logl -= loglikelihood_Hamming(state, state.c_i[i_1], const_data);
 
-    //DEBUG_PRINT(1, "SPLIT - likelihood Logratio: {}", logl);
-    //DEBUG_PRINT(1, "SPLIT - likelihood ratio: {}", exp(logl)); 
+    DEBUG_PRINT(1, "SPLIT - likelihood Logratio: {}", logl);
+    DEBUG_PRINT(1, "SPLIT - likelihood ratio: {}", exp(logl)); 
 
     // evaluate proposal ratio
     double logq = 0;
@@ -985,12 +1039,12 @@ double split_acc_prob(const internal_state & state_split, const internal_state &
     logq -= logprobgs_phi(state_split, split_launch, const_data, i_2);
     logq -= logprobgs_c_i(state_split, split_launch, const_data, S, i_1, i_2);
 
-    //DEBUG_PRINT(1, "SPLIT - proposal Logratio: {}", logq);
-    //DEBUG_PRINT(1, "SPLIT - proposal ratio: {}", exp(logq));
+    DEBUG_PRINT(1, "SPLIT - proposal Logratio: {}", logq);
+    DEBUG_PRINT(1, "SPLIT - proposal ratio: {}", exp(logq));
 
     double tot_ratio = logp + logl + logq;
 
-    //DEBUG_PRINT(0, "SPLIT - final ratio: {}",exp(tot_ratio));
+    DEBUG_PRINT(0, "SPLIT - final ratio: {}",exp(tot_ratio));
 
     return std::min(exp(tot_ratio), 1.0);
 }
@@ -1013,8 +1067,8 @@ double merge_acc_prob(const internal_state & state_merge, const internal_state &
     logp -= lfact(cls_elem(state, state.c_i[i_2]) - 1);
     logp -= priors(state, state.c_i[i_1], const_data);
     logp -= priors(state, state.c_i[i_2], const_data);
-    //DEBUG_PRINT(1, "MERGE - prior Logratio: {}", logp);
-    //DEBUG_PRINT(1, "MERGE - prior ratio: {}", exp(logp));
+    DEBUG_PRINT(1, "MERGE - prior Logratio: {}", logp);
+    DEBUG_PRINT(1, "MERGE - prior ratio: {}", exp(logp));
 
     // evaluate likelihood ratio
     double logl = 0;
@@ -1024,8 +1078,8 @@ double merge_acc_prob(const internal_state & state_merge, const internal_state &
     logl -= loglikelihood_Hamming(state, state.c_i[i_1], const_data);
     logl -= loglikelihood_Hamming(state, state.c_i[i_2], const_data);
 
-    //DEBUG_PRINT(1, "MERGE - likelihood Logratio: {}", logl);
-    //DEBUG_PRINT(1, "MERGE - likelihood ratio: {}", exp(logl));
+    DEBUG_PRINT(1, "MERGE - likelihood Logratio: {}", logl);
+    DEBUG_PRINT(1, "MERGE - likelihood ratio: {}", exp(logl));
 
     // evaluate proposal ratio
     double logq = 0;
@@ -1036,12 +1090,12 @@ double merge_acc_prob(const internal_state & state_merge, const internal_state &
     // denominator
     logq -= logprobgs_phi(state_merge, merge_launch, const_data, i_2);
 
-    //DEBUG_PRINT(1, "MERGE - proposal Logratio: {}", logq);
-    //DEBUG_PRINT(1, "MERGE - proposal ratio: {}", exp(logq));
+    DEBUG_PRINT(1, "MERGE - proposal Logratio: {}", logq);
+    DEBUG_PRINT(1, "MERGE - proposal ratio: {}", exp(logq));
 
     double tot_ratio = logp + logl + logq;
 
-    //DEBUG_PRINT(0, "MERGE - final ratio: {}",exp(tot_ratio));
+    DEBUG_PRINT(0, "MERGE - final ratio: {}",exp(tot_ratio));
 
     return std::min(exp(tot_ratio), 1.0);
 }
@@ -1078,7 +1132,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t, int r
 
     if(state.c_i[i_1] == state.c_i[i_2]){
         state_star = split_launch;
-        //DEBUG_PRINT(0, "SPLIT - propose");
+        DEBUG_PRINT(0, "SPLIT - propose");
         
         // ----- (a) - last Restricted Gibbs Sampler -----
         split_restricted_gibbs_sampler(state_star, i_1, i_2, S, const_data);
@@ -1088,7 +1142,7 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t, int r
         split_n++;
     }    
     else{
-        //DEBUG_PRINT(0, "MERGE - propose");
+        DEBUG_PRINT(0, "MERGE - propose");
         state_star = merge_launch;
         // ----- (a) - merge -----
         
@@ -1108,8 +1162,9 @@ void split_and_merge(internal_state & state, aux_data & const_data, int t, int r
     if(R::runif(0,1) < acpt_ratio){
         clean_var(state, state_star, unique_classes(state_star.c_i), const_data.attrisize); // per sicurezza
         state = state_star;
-        //DEBUG_PRINT(0, "ACCEPTED");
+        DEBUG_PRINT(0, "ACCEPTED");
         accepted++;
+        std::cout<<"*******************************************************************************"<<std::endl;
     }
 }
 
@@ -1136,7 +1191,7 @@ double compute_loglikelihood(internal_state & state, aux_data & const_data) {
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
-                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool split_merge = true) {
+                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool neal8=false, bool split_merge = true) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -1197,6 +1252,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations << std::endl;
 
         // Sample new cluster assignments for each observation
+        if(neal8){
         for (int index_i = 0; index_i < const_data.n; index_i++) {
             L = unique_classes(state.c_i).length();
             IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
@@ -1208,7 +1264,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         // Update centers and sigmas
         update_centers(state, const_data);
         update_sigma(state.sigma, state.center, state.c_i, const_data);
-
+        }
         if(verbose == 2){
             print_internal_state(state);
         }
@@ -1217,6 +1273,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         if(split_merge){
             split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n);
         }
+        print_internal_state(state,1);
 
         // Calculate likelihood
         double loglikelihood = compute_loglikelihood(state, const_data);
