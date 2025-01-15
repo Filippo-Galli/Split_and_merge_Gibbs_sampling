@@ -48,8 +48,8 @@ Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-librar
 # Include full library paths and libraries
 Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 
-u = c(rep(6,12),3,rep(6,3))
-v = c(rep(0.25,12),0.5,rep(0.25,3))
+v = c(rep(6,12),3,rep(6,3))
+w = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/neal_sampler.cpp")
 
@@ -66,7 +66,7 @@ for(l in L_plurale){
                               attrisize = mm, 
                               gamma = 0.68, 
                               v = v, 
-                              w = u, 
+                              w = w, 
                               verbose = 0, 
                               m = m, 
                               iterations = iterations, 
