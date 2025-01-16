@@ -1,0 +1,201 @@
+Initial cluster assignments provided
+Starting Markov Chain sampling...
+[DEBUG:select_observations:933] Selected observation : 30 - 71
+[DEBUG:select_observations:934] Belonging cluster    : 5 - 1
+S: { 11, 16, 20, 21, 23, 24, 33, 37, 39, 40, 41, 42, 43, 51, 56, 57, 58, 59, 78, 79, 83, 87, 88, 95, 97, 100, }
+[DEBUG:split_launch_state:978] SPLIT - Split launch state
+Cluster assignments: 
+	0 0 3 0 0 0 0 3 3 0 0 5 3 6 6 6 5 0 3 0 5 5 0 1 1 4 4 0 0 0 5 0 0 5 3 0 0 5 3 1 5 5 5 1 0 0 6 0 0 0 0 5 4 6 0 0 1 1 5 1 3 3 2 0 0 0 0 0 0 0 0 1 6 3 0 0 2 6 5 5 2 6 3 1 0 6 3 1 5 4 2 2 3 0 0 1 0 5 0 6 5
+[DEBUG:split_launch_state:986] SPLIT - Split launch state, after clean_var
+Cluster assignments: 
+	0 0 3 0 0 0 0 3 3 0 0 5 3 6 6 6 5 0 3 0 5 5 0 1 1 4 4 0 0 0 5 0 0 5 3 0 0 5 3 1 5 5 5 1 0 0 6 0 0 0 0 5 4 6 0 0 1 1 5 1 3 3 2 0 0 0 0 0 0 0 0 1 6 3 0 0 2 6 5 5 2 6 3 1 0 6 3 1 5 4 2 2 3 0 0 1 0 5 0 6 5
+Centers: 
+	Cluster 0 :1 2 1 1 2 2 2 1 1 2 2 1 2 1 1 2
+	Cluster 1 :1 1 2 2 1 1 2 2 2 1 2 1 3 2 1 1
+	Cluster 2 :1 2 2 1 1 2 2 1 1 1 2 2 4 2 1 1
+	Cluster 3 :2 1 1 1 1 2 2 2 2 1 2 1 2 2 2 1
+	Cluster 4 :1 2 2 2 2 2 2 2 1 1 2 1 2 1 2 2
+	Cluster 5 :2 1 2 1 1 2 2 2 1 1 1 1 3 2 1 2
+	Cluster 6 :2 2 2 2 2 1 2 1 2 1 1 1 5 1 2 1
+Dispersions: 
+	Cluster 0: 0.28641 0.4083 0.46971 3.32 0.23126 0.75185 0.50831 0.40358 0.45222 0.75735 1.848 1.618 0.72478 0.36736 0.43459 1.8799
+	Cluster 1: 0.2262 0.83618 0.49545 0.82719 2.5868 7.604 0.35156 0.25628 0.35312 1.405 0.58338 0.41042 0.84696 0.8244 0.64534 1.3692
+	Cluster 2: 0.5975 1.1152 0.62159 0.30795 2.6456 0.33541 0.70307 1.1884 0.47581 2.8245 0.85068 1.1813 4.732 0.68272 0.23126 0.31557
+	Cluster 3: 24.898 0.3513 0.32829 0.70407 0.62702 1.043 1.6103 0.47061 0.47423 0.43689 0.63746 0.40618 0.39763 0.54131 1.7655 0.55359
+	Cluster 4: 0.48056 3.2733 0.29573 1.0963 1.2657 1.2226 0.43804 1.0427 0.73245 0.67682 0.4959 0.27662 0.27418 0.21515 0.69285 0.98512
+	Cluster 5: 0.92271 0.40594 0.47423 0.34397 0.90263 0.59077 0.6837 1.8865 0.50898 0.38971 0.56752 0.91994 0.59355 2.5796 0.43988 0.76234
+	Cluster 6: 0.37655 0.72275 0.42001 1.1929 0.28935 1.1632 0.24767 0.8524 0.2384 0.63675 0.72351 0.68938 0.68642 6.4265 1.7961 0.57946
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.0734658 - 0.926534
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.0340852 - 0.965915
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.0554505 - 0.944549
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.392832 - 0.607168
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.445824 - 0.554176
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.995927 - 0.0040727
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.158553 - 0.841447
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.0255443 - 0.974456
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.99736 - 0.00263964
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.999954 - 4.60635e-05
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.0443958 - 0.955604
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.950142 - 0.0498575
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.0825136 - 0.917486
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.999946 - 5.36008e-05
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.587758 - 0.412242
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.04818 - 0.95182
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.689353 - 0.310647
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.0945212 - 0.905479
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.122789 - 0.877211
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.107376 - 0.892624
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.0717426 - 0.928257
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.786855 - 0.213145
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.993635 - 0.00636492
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.148247 - 0.851753
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.99827 - 0.00173039
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.0717426 - 0.928257
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+	[DEBUG:split_restricted_gibbs_sampler:657] SPLIT - Parameter update for cluster: 5 - 1
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 3.01807e-05 - 0.99997
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 1.40419e-05 - 0.999986
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 3.01807e-05 - 0.99997
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.000176914 - 0.999823
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.000185631 - 0.999814
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.999988 - 1.24902e-05
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 2.85706e-05 - 0.999971
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 1.20145e-05 - 0.999988
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.999987 - 1.29375e-05
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.999996 - 4.4914e-06
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 9.83068e-05 - 0.999902
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.999606 - 0.000393734
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 7.4402e-05 - 0.999926
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.999996 - 4.4914e-06
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.00129826 - 0.998702
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 2.58231e-05 - 0.999974
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.000495639 - 0.999504
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 5.41116e-05 - 0.999946
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 2.42851e-05 - 0.999976
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 2.42851e-05 - 0.999976
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 5.41116e-05 - 0.999946
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.000315937 - 0.999684
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.999982 - 1.7843e-05
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 2.50795e-05 - 0.999975
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 0.999991 - 8.8198e-06
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 5 
+[DEBUG:split_restricted_gibbs_sampler:651] SPLIT - Restricted probabilities: 4.55681e-05 - 0.999954
+	[DEBUG:split_restricted_gibbs_sampler:652] SPLIT - Sampled center: 1 
+	[DEBUG:split_restricted_gibbs_sampler:657] SPLIT - Parameter update for cluster: 5 - 1
+[DEBUG:split_launch_state:996] SPLIT - Split launch state, after t restricted Gibbs scan
+Cluster assignments: 
+	0 0 3 0 0 0 0 3 3 0 0 1 3 6 6 6 1 0 3 0 1 1 0 1 5 4 4 0 0 0 5 0 0 1 3 0 0 1 3 5 5 1 5 1 0 0 6 0 0 0 0 5 4 6 0 0 1 1 1 1 3 3 2 0 0 0 0 0 0 0 0 1 6 3 0 0 2 6 1 1 2 6 3 1 0 6 3 1 5 4 2 2 3 0 0 1 0 5 0 6 1
+Centers: 
+	Cluster 0 :1 2 1 1 2 2 2 1 1 2 2 1 2 1 1 2
+	Cluster 1 :1 2 2 1 2 1 2 1 2 2 1 1 2 2 1 1
+	Cluster 2 :1 2 2 1 1 2 2 1 1 1 2 2 4 2 1 1
+	Cluster 3 :2 1 1 1 1 2 2 2 2 1 2 1 2 2 2 1
+	Cluster 4 :1 2 2 2 2 2 2 2 1 1 2 1 2 1 2 2
+	Cluster 5 :2 1 2 1 2 1 1 1 1 2 1 1 5 1 1 1
+	Cluster 6 :2 2 2 2 2 1 2 1 2 1 1 1 5 1 2 1
+Dispersions: 
+	Cluster 0: 0.28641 0.4083 0.46971 3.32 0.23126 0.75185 0.50831 0.40358 0.45222 0.75735 1.848 1.618 0.72478 0.36736 0.43459 1.8799
+	Cluster 1: 0.46495 0.27938 0.17665 0.54131 0.71792 0.71362 5.9237 0.33838 0.30192 0.31179 0.35672 0.16957 0.20966 0.22927 0.90958 2.0039
+	Cluster 2: 0.5975 1.1152 0.62159 0.30795 2.6456 0.33541 0.70307 1.1884 0.47581 2.8245 0.85068 1.1813 4.732 0.68272 0.23126 0.31557
+	Cluster 3: 24.898 0.3513 0.32829 0.70407 0.62702 1.043 1.6103 0.47061 0.47423 0.43689 0.63746 0.40618 0.39763 0.54131 1.7655 0.55359
+	Cluster 4: 0.48056 3.2733 0.29573 1.0963 1.2657 1.2226 0.43804 1.0427 0.73245 0.67682 0.4959 0.27662 0.27418 0.21515 0.69285 0.98512
+	Cluster 5: 1.2119 0.27662 0.32967 0.46382 0.5873 0.36182 0.57785 0.31816 0.24852 0.40971 0.92671 0.29192 0.17983 0.5917 0.619 0.39068
+	Cluster 6: 0.37655 0.72275 0.42001 1.1929 0.28935 1.1632 0.24767 0.8524 0.2384 0.63675 0.72351 0.68938 0.68642 6.4265 1.7961 0.57946
+[DEBUG:merge_launch_state:1031] MERGE - Merge launch state
+Cluster assignments: 
+	0 0 3 0 0 0 0 3 3 0 0 1 3 6 6 6 1 0 3 0 1 1 0 1 1 4 4 0 0 0 1 0 0 1 3 0 0 1 3 1 1 1 1 1 0 0 6 0 0 0 0 1 4 6 0 0 1 1 1 1 3 3 2 0 0 0 0 0 0 0 0 1 6 3 0 0 2 6 1 1 2 6 3 1 0 6 3 1 1 4 2 2 3 0 0 1 0 1 0 6 1
+[DEBUG:merge_launch_state:1039] MERGE - Merge launch state, after clean
+Cluster assignments: 
+	0 0 3 0 0 0 0 3 3 0 0 1 3 5 5 5 1 0 3 0 1 1 0 1 1 4 4 0 0 0 1 0 0 1 3 0 0 1 3 1 1 1 1 1 0 0 5 0 0 0 0 1 4 5 0 0 1 1 1 1 3 3 2 0 0 0 0 0 0 0 0 1 5 3 0 0 2 5 1 1 2 5 3 1 0 5 3 1 1 4 2 2 3 0 0 1 0 1 0 5 1
+Centers: 
+	Cluster 0 :1 2 1 1 2 2 2 1 1 2 2 1 2 1 1 2
+	Cluster 1 :2 2 1 2 2 1 2 2 1 2 1 2 5 2 2 1
+	Cluster 2 :1 2 2 1 1 2 2 1 1 1 2 2 4 2 1 1
+	Cluster 3 :2 1 1 1 1 2 2 2 2 1 2 1 2 2 2 1
+	Cluster 4 :1 2 2 2 2 2 2 2 1 1 2 1 2 1 2 2
+	Cluster 5 :2 2 2 2 2 1 2 1 2 1 1 1 5 1 2 1
+Dispersions: 
+	Cluster 0: 0.28641 0.4083 0.46971 3.32 0.23126 0.75185 0.50831 0.40358 0.45222 0.75735 1.848 1.618 0.72478 0.36736 0.43459 1.8799
+	Cluster 1: 0.60939 0.34397 0.40168 0.54767 0.42443 0.49072 0.30525 0.69857 1.9571 0.3993 0.27134 5.3505 0.43712 0.40452 0.34291 0.31002
+	Cluster 2: 0.5975 1.1152 0.62159 0.30795 2.6456 0.33541 0.70307 1.1884 0.47581 2.8245 0.85068 1.1813 4.732 0.68272 0.23126 0.31557
+	Cluster 3: 24.898 0.3513 0.32829 0.70407 0.62702 1.043 1.6103 0.47061 0.47423 0.43689 0.63746 0.40618 0.39763 0.54131 1.7655 0.55359
+	Cluster 4: 0.48056 3.2733 0.29573 1.0963 1.2657 1.2226 0.43804 1.0427 0.73245 0.67682 0.4959 0.27662 0.27418 0.21515 0.69285 0.98512
+	Cluster 5: 0.37655 0.72275 0.42001 1.1929 0.28935 1.1632 0.24767 0.8524 0.2384 0.63675 0.72351 0.68938 0.68642 6.4265 1.7961 0.57946
+	[DEBUG:merge_launch_state:1044] MERGE - Parameter update for cluster: 1
+[DEBUG:merge_launch_state:1054] MERGE - Merge launch state, after r restricted Gibbs scan
+Cluster assignments: 
+	0 0 3 0 0 0 0 3 3 0 0 1 3 5 5 5 1 0 3 0 1 1 0 1 1 4 4 0 0 0 1 0 0 1 3 0 0 1 3 1 1 1 1 1 0 0 5 0 0 0 0 1 4 5 0 0 1 1 1 1 3 3 2 0 0 0 0 0 0 0 0 1 5 3 0 0 2 5 1 1 2 5 3 1 0 5 3 1 1 4 2 2 3 0 0 1 0 1 0 5 1
+Centers: 
+	Cluster 0 :1 2 1 1 2 2 2 1 1 2 2 1 2 1 1 2
+	Cluster 1 :1 2 2 1 2 1 1 1 2 2 1 1 2 2 1 1
+	Cluster 2 :1 2 2 1 1 2 2 1 1 1 2 2 4 2 1 1
+	Cluster 3 :2 1 1 1 1 2 2 2 2 1 2 1 2 2 2 1
+	Cluster 4 :1 2 2 2 2 2 2 2 1 1 2 1 2 1 2 2
+	Cluster 5 :2 2 2 2 2 1 2 1 2 1 1 1 5 1 2 1
+Dispersions: 
+	Cluster 0: 0.28641 0.4083 0.46971 3.32 0.23126 0.75185 0.50831 0.40358 0.45222 0.75735 1.848 1.618 0.72478 0.36736 0.43459 1.8799
+	Cluster 1: 0.83562 9.6237 0.37926 0.27026 0.59077 1.999 0.79197 0.25903 0.89812 0.35337 0.44766 0.21862 0.3213 0.83562 0.5961 0.99994
+	Cluster 2: 0.5975 1.1152 0.62159 0.30795 2.6456 0.33541 0.70307 1.1884 0.47581 2.8245 0.85068 1.1813 4.732 0.68272 0.23126 0.31557
+	Cluster 3: 24.898 0.3513 0.32829 0.70407 0.62702 1.043 1.6103 0.47061 0.47423 0.43689 0.63746 0.40618 0.39763 0.54131 1.7655 0.55359
+	Cluster 4: 0.48056 3.2733 0.29573 1.0963 1.2657 1.2226 0.43804 1.0427 0.73245 0.67682 0.4959 0.27662 0.27418 0.21515 0.69285 0.98512
+	Cluster 5: 0.37655 0.72275 0.42001 1.1929 0.28935 1.1632 0.24767 0.8524 0.2384 0.63675 0.72351 0.68938 0.68642 6.4265 1.7961 0.57946
+[DEBUG:split_and_merge:1205] MERGE - propose
+	[DEBUG:merge_acc_prob:1130] MERGE - prior Logratio: 47.6038
+	[DEBUG:merge_acc_prob:1131] MERGE - prior ratio: 4.72136e+20
+	[DEBUG:merge_acc_prob:1141] MERGE - likelihood Logratio: 387.732
+	[DEBUG:merge_acc_prob:1142] MERGE - likelihood ratio: 2.45435e+168
+	[DEBUG:merge_acc_prob:1153] MERGE - proposal Logratio: -1727.08
+	[DEBUG:merge_acc_prob:1154] MERGE - proposal ratio: 0
+[DEBUG:merge_acc_prob:1158] MERGE - final ratio: 0
+[==================================================] 100%
+
+Markov Chain sampling completed in: 0 s

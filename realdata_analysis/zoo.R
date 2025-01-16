@@ -52,11 +52,29 @@ v = c(rep(6,12),3,rep(6,3))
 w = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/neal_sampler.cpp")
-
+#sink("output.txt")
+run <- run_markov_chain(data = zoo, 
+                 attrisize = mm, 
+                 gamma = 0.68, 
+                 v = v, 
+                 w = w, 
+                 verbose = 0, 
+                 m = m, 
+                 iterations = iterations,
+                 L = 10,
+                 #c_i = unlist(groundTruth), 
+                 #c_i = rep(0,101),
+                 c_i = seq(1,101),
+                 burnin = burnin,
+                 t = 2, 
+                 r = 2,
+                 neal8 = FALSE,
+                 split_merge = TRUE)
+table(run$final_ass)
+#sink()
 L_plurale <- c(7)
-initial_assignment_bool <- c(TRUE)
-iterations <- 3000
-burnin <- 2000
+iterations <- 1000
+burnin <- 0
 m <- 3
 for(l in L_plurale){
   temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
@@ -71,10 +89,10 @@ for(l in L_plurale){
                               m = m, 
                               iterations = iterations, 
                               L = l, 
-                              c_i = unlist(groundTruth), 
+                              #c_i = unlist(groundTruth), 
                               #c_i = rep(0,101),
                               #c_i = seq(1,101),
-                              burnin = burnin,
+                              burnin = 0,
                               t = 2, 
                               r = 2,
                               split_merge = TRUE)
