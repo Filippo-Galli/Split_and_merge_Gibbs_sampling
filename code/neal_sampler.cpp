@@ -740,7 +740,7 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
 
     if(debugging){
         DEBUG_PRINT(0, "Proposal");
-        Rcpp::Rcout << prob_centers << std::endl;
+        //Rcpp::Rcout << prob_centers << std::endl;
     }
 
     // center parameter for which calculate probability
