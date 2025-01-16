@@ -51,51 +51,41 @@ Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 v = c(rep(6,12),3,rep(6,3))
 w = c(rep(0.25,12),0.5,rep(0.25,3))
 
-Rcpp::sourceCpp("../code/neal_sampler.cpp")
-#sink("output.txt")
-run <- run_markov_chain(data = zoo, 
-                 attrisize = mm, 
-                 gamma = 0.68, 
-                 v = v, 
-                 w = w, 
-                 verbose = 0, 
-                 m = m, 
-                 iterations = iterations,
-                 L = 10,
-                 c_i = unlist(groundTruth), 
-                 #c_i = rep(0,101),
-                 #c_i = seq(1,101),
-                 burnin = burnin,
-                 t = 2, 
-                 r = 2,
-                 neal8 = FALSE,
-                 split_merge = TRUE)
-table(run$final_ass)
-#sink()
+zoo.subset <- zoo[which(unlist(groundTruth) %in% c(1,2,3)),]
+groundTruth.subset <- unlist(groundTruth)[which(unlist(groundTruth) %in% c(1,2))]
+
 L_plurale <- c(7)
 iterations <- 1000
 burnin <- 0
 m <- 3
+n <- 61
+
+zoo <- zoo.subset #
+groundTruth <- groundTruth.subset
+
+Rcpp::sourceCpp("../code/neal_sampler.cpp")
 for(l in L_plurale){
   temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
   result_name = "result_"
-
+  sink("output.txt")
   results <- run_markov_chain(data = zoo, 
-                              attrisize = mm, 
-                              gamma = 0.68, 
-                              v = v, 
-                              w = w, 
-                              verbose = 0, 
-                              m = m, 
-                              iterations = iterations, 
-                              L = l, 
-                              c_i = unlist(groundTruth), 
-                              #c_i = rep(0,101),
-                              #c_i = seq(1,101),
-                              burnin = 0,
-                              t = 2, 
-                              r = 2,
-                              split_merge = TRUE)
+                          attrisize = mm, 
+                          gamma = 0.68, 
+                          v = v, 
+                          w = w, 
+                          verbose = 0, 
+                          m = m, 
+                          iterations = iterations,
+                          L = l,
+                          c_i = unlist(groundTruth), 
+                          #c_i = rep(0,nrow(zoo)),
+                          #c_i = seq(1,nrow(zoo)),
+                          burnin = burnin,
+                          t = 5, 
+                          r = 5,
+                          neal8 = FALSE,
+                          split_merge = TRUE)
+  sink()
   result_name = paste(result_name, "init_ass_", sep="")
 
   # Save results
@@ -104,6 +94,8 @@ for(l in L_plurale){
   print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 }
 
+table(results$final_ass)
+table(unlist(groundTruth))
 
 ### Posterior similarity matrix
 results_dir <- file.path(getwd(), "../results")

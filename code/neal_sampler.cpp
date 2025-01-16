@@ -483,7 +483,8 @@ void update_centers(internal_state & state, const aux_data & const_data, std::ve
     NumericVector attr_centers(const_data.attrisize.length());
     List prob_centers_cluster;
     
-    List attri_List = Attributes_List(const_data.data, const_data.data.ncol());   
+    //List attri_List = Attributes_List(const_data.data, const_data.data.ncol());
+    List attri_List = Attributes_List_manual(const_data.data, const_data.data.ncol());
 
     // If no specific clusters specified, update all clusters
     if (cluster_indexes.size() == 0) {
@@ -609,7 +610,7 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
     NumericVector sigma(const_data.attrisize.length());
     int cls;
     int n_s_cls;
-    
+
     for (int s : S) {
         // extract datum at s
         y_s = const_data.data(s, _);
@@ -642,17 +643,18 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
 
         // Normalize probabilities
         probs = probs / sum(probs);
-
+       
         // Sample new cluster assignment between the two clusters of i_1 and i_2
         state.c_i[s] = sample(IntegerVector::create(c_i_1, c_i_2), 1, true, probs)[0];
-        update_centers(state, const_data, {c_i_1, c_i_2});
-        update_sigma(state.sigma, state.center, state.c_i, const_data, {c_i_1, c_i_2});
 
     }
 
-    if(debugging){
+    update_centers(state, const_data, {c_i_1, c_i_2});
+    update_sigma(state.sigma, state.center, state.c_i, const_data, {c_i_1, c_i_2});
+
+    /*if(debugging){
         DEBUG_PRINT(1, "SPLIT - Parameter update for cluster: {} - {}", c_i_1, c_i_2);
-    }
+    }*/
 }
 
 int lfact(int n){
@@ -831,13 +833,13 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
         for (int k = 0; k < 2; k++) {
             // select parameter values of the corresponding cluster
             if(k == 0){
-                center = aux_state.center[c_i_1]; //center1;
-                sigma = aux_state.sigma[c_i_1]; //sigma1;
+                center = center1;
+                sigma = sigma1;
                 cls = c_i_1;
             }
             else{
-                center = aux_state.center[c_i_2];
-                sigma = aux_state.center[c_i_2];
+                center = center2;
+                sigma = sigma2;
                 cls = c_i_2;
             }
 
@@ -858,8 +860,6 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
 
         // update for the current value of s
         aux_state.c_i[s] = gamma_star.c_i[s];
-        update_centers(aux_state, const_data, {c_i_1, c_i_2});
-        update_sigma(aux_state.sigma, aux_state.center, aux_state.c_i, const_data, {c_i_1, c_i_2});
 
         int currrent_c = gamma_star.c_i[s] == c_i_1 ? 0 : 1;
 
@@ -1148,7 +1148,7 @@ double merge_acc_prob(const internal_state & state_merge, const internal_state &
     return std::min(exp(tot_ratio), 1.0);
 }
 
-void split_and_merge(internal_state & state, const aux_data & const_data, int t, int r, double & acpt_ratio, int & accepted, int & split_n, int & merge_n) {
+void split_and_merge(internal_state & state, const aux_data & const_data, int t, int r, double & acpt_ratio, int & accepted, int & split_n, int & merge_n, int & accepted_merge, int & accepted_split) {
     /**
      * @brief Split and merge step
      * @details This function implements the split and merge step of the MCMC algorithm
@@ -1178,6 +1178,8 @@ void split_and_merge(internal_state & state, const aux_data & const_data, int t,
     internal_state state_star = {IntegerVector(), List(), List(), 0};
     acpt_ratio = .999;
 
+    int type = 0;
+
     if(state.c_i[i_1] == state.c_i[i_2]){
         
         if(debugging){
@@ -1195,13 +1197,14 @@ void split_and_merge(internal_state & state, const aux_data & const_data, int t,
         split_restricted_gibbs_sampler(S, state_star, i_1, i_2, const_data);
 
         if(debugging){
-            DEBUG_PRINT(1, "SPLIT - state after");
-            print_internal_state(state_star);
+            DEBUG_PRINT(1, "SPLIT - state of interest !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            print_internal_state(state_star, 1 );
         }
 
         // ----- (b) - Transition probabilities ----- 
         acpt_ratio = split_acc_prob(state_star, state, split_launch, merge_launch, S, i_1, i_2, const_data);
         split_n++;
+        type = 1;
     }    
     else{
 
@@ -1216,7 +1219,7 @@ void split_and_merge(internal_state & state, const aux_data & const_data, int t,
 
         // ----- (b) - transition probabilities -----
         acpt_ratio = merge_acc_prob(state_star, state, split_launch, merge_launch, S, i_1, i_2, const_data);
-
+        type = 2;
         merge_n++;        
     }
     
@@ -1229,6 +1232,13 @@ void split_and_merge(internal_state & state, const aux_data & const_data, int t,
             DEBUG_PRINT(0, "ACCEPTED");
         }
         accepted++;
+        if(type == 1){
+            accepted_split++;
+        }
+        if(type == 2){
+            accepted_merge++;
+        }
+
     }
 }
 
@@ -1267,6 +1277,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
      * @param iterations Number of MCMC iterations (default: 1000)
      * @return List containing final clustering results
     */
+
     aux_data const_data = {data, data.nrow(), attrisize, gamma, v, w};
     internal_state state = {IntegerVector(), List(), List(), L};
 
@@ -1300,6 +1311,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                                 Named("accepted") = IntegerVector(iterations),
                                 Named("split_n") = IntegerVector(iterations),
                                 Named("merge_n") = IntegerVector(iterations),
+                                Named("accepted_merge") = IntegerVector(iterations), 
+                                Named("accepted_split") = IntegerVector(iterations), 
                                 Named("final_ass") = IntegerVector(data.nrow())                           
                                 );
 
@@ -1310,6 +1323,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     int accepted = 0; 
     int split_n = 0;
     int merge_n = 0;
+    int accepted_merge = 0;
+    int accepted_split = 0;
 
     for (int iter = 0; iter < iterations + burnin; iter++) {
         if(verbose != 0)
@@ -1337,7 +1352,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
         // Split and merge step
         if(split_merge){
-            split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n);
+            split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n, accepted_merge, accepted_split);
         }
 
         if(verbose == 2){
@@ -1363,6 +1378,9 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             as<IntegerVector>(results["accepted"])[iter - burnin] = accepted;
             as<IntegerVector>(results["split_n"])[iter - burnin] = split_n;
             as<IntegerVector>(results["merge_n"])[iter - burnin] = merge_n;
+            as<IntegerVector>(results["accepted_merge"])[iter - burnin] = accepted_merge;
+            as<IntegerVector>(results["accepted_split"])[iter - burnin] = accepted_split;
+            
         }
     }
     auto end_time = std::chrono::high_resolution_clock::now();

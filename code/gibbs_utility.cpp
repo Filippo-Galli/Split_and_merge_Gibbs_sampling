@@ -38,7 +38,7 @@ List Center_prob (NumericMatrix data, NumericVector sigma, NumericVector attrisi
   return prob;
 }
 
-// Same as Center_prob, but sigma is a CONSTANT (double)
+// Same as Center_prob, but sigma is a CONSTANT (double)a
 // [[Rcpp::export]]
 List Center_prob_2 (NumericMatrix data, double sigma, NumericVector attrisize){
   
@@ -80,9 +80,9 @@ List Center_prob_2 (NumericMatrix data, double sigma, NumericVector attrisize){
 NumericVector Samp_Center(List attriList, List center_prob, int p){
   IntegerVector tmp;
   NumericVector samp(p);
-  for (int i=0; i<p;i++){
+  for (int i=0; i < p; i++){
     IntegerVector attributes = attriList[i];
-    tmp = sample(attributes, 1,true, center_prob[i]);
+    tmp = sample(attributes, 1, true, center_prob[i]);
     samp[i]=tmp[0];
   }
   return samp;
@@ -121,6 +121,23 @@ List Attributes_List(NumericMatrix data,int p){
   List attr(p);
   for(int j=0; j<p;j++){
     int m_j = max(data(_,j));
+    IntegerVector elem = seq_len(m_j);
+    attr[j]=elem;
+  }
+  return attr;
+}
+
+// List of attributes per variable
+// - data matrix
+// - p is the number of variable
+// [[Rcpp::export]]
+List Attributes_List_manual(NumericMatrix data,int p){
+  List attr(p);
+  for(int j=0; j<p;j++){
+    int m_j = 2;
+    if(j == 12){
+      m_j = 6;
+    }
     IntegerVector elem = seq_len(m_j);
     attr[j]=elem;
   }
