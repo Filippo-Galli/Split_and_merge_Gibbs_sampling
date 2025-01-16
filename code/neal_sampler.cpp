@@ -22,7 +22,7 @@
 #include <hyperg.cpp>
 using namespace Rcpp;
 
-bool debugging = false;
+bool debugging = true;
 
 namespace debug {
 
@@ -543,7 +543,7 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
             cluster_data(i, _) = const_data.data(cluster_indices[i], _);
         }
         
-        int nm =  const_data.data.nrow(); // check
+        int nm = cluster_indices.length(); // check
         //NumericVector sigmas_cluster = as<NumericVector>(sigma[c]);
         NumericVector centers_cluster = as<NumericVector>(centers[c]);
         
@@ -956,7 +956,7 @@ internal_state split_launch_state(const std::vector<int> & S, const internal_sta
 
     if(debugging){
         DEBUG_PRINT(0, "SPLIT - Split launch state, after clean_var");
-        print_internal_state(state_launch_split);
+        print_internal_state(state_launch_split, 1);
     }
     
     // Intermediate restricted Gibbs Sampler on gamma split launch 
