@@ -40,10 +40,9 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 ## Obbligatorie per Filippo perché RcppGSL non trova le librerie GSL e nemmeno RcppGSL.h
 # First, use the explicit include path from RcppGSL
 Sys.setenv("PKG_CXXFLAGS" = paste0("-I/home/filippo/R/x86_64-pc-linux-gnu-library/4.4/RcppGSL/include", 
-                                   " -I/usr/local/include", "-O3 -Wall -Wextra -pedantic"))
-
-Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-library/4.4/RcppGSL/include"', 
                                    " -I/usr/local/include"))
+
+#Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-library/4.4/RcppGSL/include"', " -I/usr/local/include"))
 
 # Include full library paths and libraries
 Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
@@ -52,22 +51,28 @@ v = c(rep(6,12),3,rep(6,3))
 w = c(rep(0.25,12),0.5,rep(0.25,3))
 
 zoo.subset <- zoo[which(unlist(groundTruth) %in% c(1,2,3)),]
-groundTruth.subset <- unlist(groundTruth)[which(unlist(groundTruth) %in% c(1,2))]
+groundTruth.subset <- unlist(groundTruth)[which(unlist(groundTruth) %in% c(1,2, 3))]
 
 L_plurale <- c(7)
-iterations <- 1000
-burnin <- 0
+iterations <- 8000
+burnin <- 7000
 m <- 3
-n <- 61
 
-zoo <- zoo.subset #
-groundTruth <- groundTruth.subset
+#n <- length(groundTruth.subset)
+#zoo <- zoo.subset 
+#groundTruth <- groundTruth.subset
 
-Rcpp::sourceCpp("../code/neal_sampler.cpp")
+Rcpp::sourceCpp("../code/neal8.cpp")
+
 for(l in L_plurale){
   temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
   result_name = "result_"
-  sink("output.txt")
+  # Clean output file
+  if(file.exists("output.txt")) {
+    # Remove the file
+    file.remove("output.txt")
+  }
+  #sink("output.txt")
   results <- run_markov_chain(data = zoo, 
                           attrisize = mm, 
                           gamma = 0.68, 
@@ -81,15 +86,15 @@ for(l in L_plurale){
                           #c_i = rep(0,nrow(zoo)),
                           #c_i = seq(1,nrow(zoo)),
                           burnin = burnin,
-                          t = 5, 
-                          r = 5,
-                          neal8 = FALSE,
+                          t = 10, 
+                          r = 10,
+                          neal8 = TRUE,
                           split_merge = TRUE)
-  sink()
+  #sink()
   result_name = paste(result_name, "init_ass_", sep="")
 
   # Save results
-  filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time,".RData", sep = "")
+  filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time, "_S&M",".RData", sep = "")
   save(results, file = filename)
   print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 }
@@ -185,7 +190,7 @@ for (file in rdata_files) {
   ## estimated clustering
   VI = minVI(psm)
 
-    # More informative output
+  # More informative output
   cat("Cluster Sizes:\n")
   print(table(VI$cl))
 

@@ -1,0 +1,376 @@
+#ifndef COMMON_FUNCTIONS_H
+#define COMMON_FUNCTIONS_H
+
+#include <Rcpp.h>
+#include <random>
+#include <algorithm>
+#include <vector>
+#include <set>
+
+#include <Rcpp.h>
+#include <RcppGSL.h>  // Add this explicit RcppGSL include
+#include <Rinternals.h>
+#include <gsl/gsl_sf_hyperg.h>
+
+#include <gibbs_utility.cpp>
+#include <hyperg.cpp>
+
+using namespace Rcpp;
+
+bool debug_var = false;
+
+// Debug utilities
+namespace debug {
+    template<typename... Args>
+    void print(unsigned int tab_level, const char* func_name, int line, const std::string& message, const Args&... args) {
+        std::stringstream ss;
+        for(unsigned int i = 0; i < tab_level; ++i) {
+            ss << '\t';
+        }
+        ss << "[DEBUG:" << func_name << ":" << line << "] ";
+        
+        size_t pos = 0;
+        size_t count = 0;
+        std::string temp = message;
+        
+        ((ss << temp.substr(pos, message.find("{}", pos) - pos) 
+            << args
+            , pos = message.find("{}", pos) + 2
+            , count++), ...);
+            
+        ss << message.substr(pos);
+        if(debug_var)
+            Rcpp::Rcout << ss.str() << std::endl;
+    }
+}
+
+#define DEBUG_PRINT(level, message, ...) \
+    debug::print(level, __func__, __LINE__, message, ##__VA_ARGS__)
+
+// Data structures
+struct internal_state {
+    IntegerVector c_i;
+    List center;
+    List sigma;
+    int total_cls = 0;
+};
+
+struct aux_data {
+    NumericMatrix data;
+    int n;
+    IntegerVector attrisize;
+    double gamma;
+    NumericVector v;
+    NumericVector w;
+};
+
+// Utility functions
+inline double log_sum_exp(const std::vector<double>& log_values) {
+    if (log_values.empty()) return -std::numeric_limits<double>::infinity();
+    double max_val = *std::max_element(log_values.begin(), log_values.end());
+    double sum = 0.0;
+    for (double log_val : log_values) {
+        sum += std::exp(log_val - max_val);
+    }
+    return max_val + std::log(sum);
+}
+
+// Print functions
+void print_internal_state(const internal_state& state, int interest = -1) {
+    if(debug_var){
+        if(interest == 1 || interest == -1){
+            Rcpp::Rcout << "Cluster assignments: " << std::endl << "\t";
+            Rcpp::Rcout << state.c_i << std::endl;
+        }
+
+        if(interest == 2 || interest == -1){
+            Rcpp::Rcout << "Centers: " << std::endl;
+            for (int i = 0; i < state.center.length(); i++) {
+                Rcpp::Rcout << "\tCluster "<< i << " :" << std::setprecision(5) 
+                        << as<NumericVector>(state.center[i]) << std::endl;
+            }
+        }
+
+        if(interest == 3 || interest == -1){
+            Rcpp::Rcout << "Dispersions: " << std::endl;
+            for (int i = 0; i < state.sigma.length(); i++) {
+                Rcpp::Rcout << "\tCluster "<< i << ": " 
+                        << as<NumericVector>(state.sigma[i]) << std::endl;
+            }
+        }
+    }
+}
+
+void print_progress_bar(int progress, int total, int bar_width = 50) {
+    /**
+     * @brief Displays a progress bar in the console
+     * @param progress Current progress value
+     * @param total Total number of steps
+     * @param bar_width Width of the progress bar in characters (default: 50)
+     * @note This is a utility function for visual feedback during long computations
+     */
+    float ratio = static_cast<float>(progress) / total;
+    int bar_progress = static_cast<int>(bar_width * ratio);
+    
+    std::string bar;
+    bar += "[";
+    for (int i = 0; i < bar_width; ++i) {
+        if (i < bar_progress) bar += "=";
+        else bar += " ";
+    }
+    bar += "] " + std::to_string(int(ratio * 100.0)) + "%";
+    
+    REprintf("\r%s", bar.c_str());
+    
+    if (progress == total) REprintf("\n");
+}
+
+// Initialization functions
+IntegerVector sample_initial_assignment(double K = 4, int n = 10) {
+    IntegerVector cluster_assignments = Rcpp::sample(K, n, true); 
+    cluster_assignments = cluster_assignments - 1; 
+    return cluster_assignments;
+}
+
+NumericVector sample_center_1_cluster(const IntegerVector & attrisize) {
+    NumericVector center(attrisize.length());
+    for (int j = 0; j < attrisize.length(); j++) {
+        center[j] = sample(attrisize[j], 1, true)[0];
+    } 
+    return center;
+}
+
+List sample_centers(const int number_cls, const IntegerVector & attrisize) {
+    List centers(number_cls);
+    for (int c = 0; c < number_cls; c++) {
+        centers[c] = sample_center_1_cluster(attrisize);
+    }   
+    return centers;
+}
+
+NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize, 
+                                   const NumericVector & v, 
+                                   const NumericVector & w) {
+    NumericVector sigma(attrisize.length());
+    for (int j = 0; j < attrisize.length(); j++) {
+        sigma[j] = rhyper_sig(1, w[j], v[j], attrisize[j])[0];
+    } 
+    return sigma;
+}
+
+List sample_sigmas(const int number_cls, const aux_data & const_data) {
+    List sigma(number_cls);
+    for (int i = 0; i < number_cls; i++) {
+        sigma[i] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+    } 
+    return sigma;
+}
+
+// Common utility functions
+IntegerVector unique_classes(const IntegerVector & c_i) {
+    IntegerVector unique_vec = unique(c_i);
+    std::sort(unique_vec.begin(), unique_vec.end());
+    return unique_vec;
+}
+
+IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int index_to_del) {
+    std::set<double> unique_classes;
+    for (int i = 0; i < c_i.length(); ++i) {
+        if (i != index_to_del) {
+            unique_classes.insert(c_i[i]);
+        }
+    }
+    return wrap(std::vector<double>(unique_classes.begin(), unique_classes.end()));
+}
+
+int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) {
+    if (exclude_index < 0 || exclude_index >= c_i.length()) {
+        Rcpp::warning("Exclude index %d is out of bounds for vector of length %d", 
+                     exclude_index, c_i.length());
+        return 0;
+    }
+    
+    int n_i_z = 0;
+    for (int i = 0; i < c_i.length(); i++) {
+        if (i != exclude_index && c_i[i] == cls) {
+            n_i_z++;
+        }
+    }
+    return n_i_z;
+}
+
+void clean_var(internal_state & updated_state, 
+              const internal_state & current_state, 
+              const IntegerVector& existing_cls, 
+              const IntegerVector& attrisize) {
+    
+    int num_existing_cls = existing_cls.length();
+    std::unordered_map<int, int> cls_to_new_index;
+    
+    for(int i = 0; i < num_existing_cls; ++i) {
+        int idx_temp = 0;
+        if(existing_cls[i] < num_existing_cls){
+            cls_to_new_index[existing_cls[i]] = existing_cls[i];
+        } else {
+            while(cls_to_new_index.find(idx_temp) != cls_to_new_index.end() 
+                  && idx_temp < num_existing_cls){
+                idx_temp++;
+            }
+            cls_to_new_index[existing_cls[i]] = idx_temp;
+        }
+    }
+    
+    List new_center(num_existing_cls);
+    List new_sigma(num_existing_cls);
+
+    for(int i = 0; i < num_existing_cls; ++i) {
+        new_center[i] = current_state.center[existing_cls[i]];
+        new_sigma[i] = current_state.sigma[existing_cls[i]];
+    }
+
+    updated_state.center = std::move(new_center);
+    updated_state.sigma = std::move(new_sigma);
+    updated_state.total_cls = num_existing_cls;
+
+    for(int i = 0; i < current_state.c_i.length(); i++) {
+        auto it = cls_to_new_index.find(current_state.c_i[i]);
+        if(it != cls_to_new_index.end()) {
+            updated_state.c_i[i] = it->second;
+        }
+    }
+}
+
+double compute_loglikelihood(internal_state & state, aux_data & const_data) {
+    double loglikelihood = 0.0;
+    for (int i = 0; i < const_data.n; i++) {
+        int cluster = state.c_i[i];
+        NumericVector center = as<NumericVector>(state.center[cluster]);
+        NumericVector sigma = as<NumericVector>(state.sigma[cluster]);
+        
+        for (int j = 0; j < const_data.attrisize.length(); j++) {
+            loglikelihood += dhamming(const_data.data(i, j), 
+                                    center[j], 
+                                    sigma[j], 
+                                    const_data.attrisize[j], 
+                                    true);
+        }
+    }
+    return loglikelihood;
+}
+
+NumericMatrix subset_data_for_cluster(const NumericMatrix & data, int cluster, const internal_state & state) {
+    /**
+     * @brief Extract data for a specific cluster
+     * @param data Input data matrix
+     * @param cluster Cluster index
+     * @return NumericMatrix containing data for the specified cluster
+     */
+    IntegerVector cluster_indices;
+    for (int i = 0; i < as<NumericVector>(state.c_i).length(); ++i) 
+        if ( as<NumericVector>(state.c_i)[i] == cluster) 
+            cluster_indices.push_back(i);
+        
+    
+    NumericMatrix cluster_data(cluster_indices.length(), data.ncol());
+    for (int i = 0; i < cluster_indices.length(); ++i) {
+        cluster_data(i, _) = data(cluster_indices[i], _);
+    }
+    
+    return cluster_data;
+}
+
+
+/**
+ * @brief Update cluster centers
+ */
+void update_centers(internal_state & state, const aux_data & const_data, 
+                   std::vector<int> cluster_indexes = {}) {
+    IntegerVector clusters = unique_classes(state.c_i);
+    int num_cls = state.total_cls;
+    List prob_centers;
+
+    NumericVector attr_centers(const_data.attrisize.length());
+    List prob_centers_cluster;
+    
+    List attri_List = Attributes_List_manual(const_data.data, const_data.data.ncol());
+
+    // Update all clusters if none specified
+    if (cluster_indexes.size() == 0) {
+        for (int i = 0; i < num_cls; i++) {
+            NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, i, state);
+            prob_centers = Center_prob(data_tmp, state.sigma[i], 
+                                    as<NumericVector>(const_data.attrisize));
+            state.center[i] = Samp_Center(attri_List, prob_centers, 
+                                        const_data.attrisize.length());
+        }
+    } else {
+        // Update only specified clusters
+        for (int idx : cluster_indexes) {
+            if (idx >= 0 && idx < num_cls) {
+                NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, idx, state);
+                prob_centers = Center_prob(data_tmp, state.sigma[idx], 
+                                        as<NumericVector>(const_data.attrisize));
+                state.center[idx] = Samp_Center(attri_List, prob_centers, 
+                                            const_data.attrisize.length());
+            }
+        }
+    }
+}
+
+/**
+ * @brief Update cluster dispersions (sigma)
+ */
+void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, 
+                 const aux_data & const_data, std::vector<int> clusters_to_update = {}) {
+    int num_cls = sigma.length();
+    NumericVector new_w(const_data.attrisize.length());
+    NumericVector new_v(const_data.attrisize.length());
+    
+    // Determine clusters to process
+    std::vector<int> clusters;
+    if (clusters_to_update.size() == 0) {
+        clusters.resize(num_cls);
+        for (int i = 0; i < num_cls; i++) {
+            clusters[i] = i;
+        }
+    } else {
+        clusters = clusters_to_update;
+    }
+    
+    // Process each cluster
+    for (int c : clusters) {
+        if (c >= num_cls) {
+            warning("Skipping invalid cluster index: %d", c);
+            continue;
+        }
+        
+        // Get cluster data
+        IntegerVector cluster_indices;
+        for (int i = 0; i < c_i.length(); ++i) {
+            if (c_i[i] == c) {
+                cluster_indices.push_back(i);
+            }
+        }
+        
+        NumericMatrix cluster_data(cluster_indices.length(), const_data.data.ncol());
+        for (int i = 0; i < cluster_indices.length(); ++i) {
+            cluster_data(i, _) = const_data.data(cluster_indices[i], _);
+        }
+        
+        int nm = cluster_indices.length();
+        NumericVector centers_cluster = as<NumericVector>(centers[c]);
+        
+        // Update parameters
+        for (int j = 0; j < const_data.attrisize.length(); ++j) {
+            NumericVector col = cluster_data(_, j);
+            double sumdelta = sum(col == centers_cluster[j]);
+            new_w[j] = const_data.w[j] + nm - sumdelta;
+            new_v[j] = const_data.v[j] + sumdelta;   
+        }
+
+        // Sample new sigmas
+        sigma[c] = clone(sample_sigma_1_cluster(const_data.attrisize, new_v, new_w));
+    }
+}
+
+#endif
