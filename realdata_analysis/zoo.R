@@ -39,7 +39,7 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 
 ## Obbligatorie per Filippo perché RcppGSL non trova le librerie GSL e nemmeno RcppGSL.h
 # First, use the explicit include path from RcppGSL
-Sys.setenv("PKG_CXXFLAGS" = paste0("-I/home/filippo/R/x86_64-pc-linux-gnu-library/4.4/RcppGSL/include", 
+Sys.setenv("PKG_CXXFLAGS" = paste0("-O3 ", "-I/home/filippo/R/x86_64-pc-linux-gnu-library/4.4/RcppGSL/include", 
                                    " -I/usr/local/include"))
 
 #Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-library/4.4/RcppGSL/include"', " -I/usr/local/include"))
@@ -94,8 +94,7 @@ for(l in L_plurale){
   result_name = paste(result_name, "init_ass_", sep="")
 
   # Save results
-  #filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time, "_S&M",".RData", sep = "")
-  filename <- paste("../results/Neal8_OneInOne_", iterations, "_", burnin,"_",temp_time, sep="")
+  filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time, "_S&M",".RData", sep = "")
   save(results, file = filename)
   print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 }

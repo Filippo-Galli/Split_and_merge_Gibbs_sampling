@@ -125,28 +125,77 @@ void print_internal_state(const internal_state& state, int interest = -1) {
     }
 }
 
-void print_progress_bar(int progress, int total, int bar_width = 50) {
-    /**
-     * @brief Displays a progress bar in the console
-     * @param progress Current progress value
-     * @param total Total number of steps
-     * @param bar_width Width of the progress bar in characters (default: 50)
-     * @note This is a utility function for visual feedback during long computations
-     */
-    float ratio = static_cast<float>(progress) / total;
-    int bar_progress = static_cast<int>(bar_width * ratio);
+void print_progress_bar(int progress, int total, const std::chrono::steady_clock::time_point& start_time) {
+    const int bar_width = 50;
+    const double ratio = static_cast<double>(progress) / total;
+    const int bar_progress = static_cast<int>(bar_width * ratio);
     
-    std::string bar;
-    bar += "[";
-    for (int i = 0; i < bar_width; ++i) {
-        if (i < bar_progress) bar += "=";
-        else bar += " ";
+    // Calculate elapsed time
+    auto current_time = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time);
+    
+    // Improved time estimation using exponential moving average
+    static double avg_time_per_step = 0.0;
+    const double alpha = 0.1; // smoothing factor
+    
+    if (progress > 1) {
+        double current_time_per_step = elapsed.count() / static_cast<double>(progress);
+        avg_time_per_step = (alpha * current_time_per_step) + ((1 - alpha) * avg_time_per_step);
+    } else {
+        avg_time_per_step = elapsed.count();
     }
-    bar += "] " + std::to_string(int(ratio * 100.0)) + "%";
     
-    REprintf("\r%s", bar.c_str());
+    // Calculate remaining time using the smoothed average
+    double remaining_seconds = avg_time_per_step * (total - progress);
+    double elapsed_seconds = elapsed.count();
     
+    // Format time with improved precision
+    auto format_time = [](double seconds) -> std::string {
+        int hours = static_cast<int>(seconds) / 3600;
+        int minutes = (static_cast<int>(seconds) % 3600) / 60;
+        int secs = static_cast<int>(seconds) % 60;
+        
+        std::ostringstream time_str;
+        if (hours > 0) {
+            time_str << hours << "h ";
+        }
+        if (minutes > 0 || hours > 0) {
+            time_str << minutes << "m ";
+        }
+        time_str << secs << "s";
+        return time_str.str();
+    };
+    
+    // Construct progress bar with speed indicator
+    std::ostringstream bar;
+    bar << "\r[";
+    for (int i = 0; i < bar_width; ++i) {
+        if (i < bar_progress) bar << "=";
+        else if (i == bar_progress) bar << ">";
+        else bar << " ";
+    }
+    
+    // Add percentage and improved time information
+    bar << "] " << std::fixed << std::setprecision(1) << (ratio * 100.0) << "% | ";
+    
+    // Only show remaining time if we have made some progress
+    if (progress > 0 && progress < total) {
+        bar << "ETA: " << format_time(remaining_seconds);
+        bar << " | " << std::fixed << std::setprecision(1) 
+            << (progress / elapsed_seconds) << " it/s"; // iterations per second
+        bar << " | Elapsed: " << format_time(elapsed_seconds);
+    } else if (progress == total) {
+        bar << "Completed in: " << format_time(elapsed_seconds);
+    }
+    
+    // Print the progress bar
+    REprintf("%s", bar.str().c_str());
+    
+    // Add newline when complete
     if (progress == total) REprintf("\n");
+    
+    // Ensure output is displayed immediately
+    R_FlushConsole();
 }
 
 // Initialization functions
@@ -161,7 +210,7 @@ IntegerVector sample_initial_assignment(double K = 4, int n = 10) {
     return cluster_assignments;
 }
 
-NumericVector sample_center_1_cluster(const IntegerVector & attrisize) {
+NumericVector sample_center_1_cluster(const IntegerVector & attrisize, const List & probs = List()) {
     /**
      * @brief Sample center for a single cluster
      * @param attrisize Vector of attribute sizes
@@ -169,7 +218,13 @@ NumericVector sample_center_1_cluster(const IntegerVector & attrisize) {
      */
     NumericVector center(attrisize.length());
     for (int j = 0; j < attrisize.length(); j++) {
-        center[j] = sample(attrisize[j], 1, true)[0];
+        if(probs.length() > 0){
+            IntegerVector attribute_vec = seq_len(attrisize[j]);
+            center[j] = sample(attribute_vec, 1, true, as<NumericVector>(probs[j]))[0];
+        }
+        
+        else 
+            center[j] = sample(attrisize[j], 1, true)[0];
     } 
     return center;
 }
@@ -368,8 +423,7 @@ NumericMatrix subset_data_for_cluster(const NumericMatrix & data, int cluster, c
     return cluster_data;
 }
 
-void update_centers(internal_state & state, const aux_data & const_data, 
-                   std::vector<int> cluster_indexes = {}) {
+void update_centers(internal_state & state, const aux_data & const_data, std::vector<int> cluster_indexes = {}) {
     /**
      * @brief Update cluster centers
      * @param state Internal state of the MCMC sampler
@@ -384,27 +438,22 @@ void update_centers(internal_state & state, const aux_data & const_data,
 
     NumericVector attr_centers(const_data.attrisize.length());
     List prob_centers_cluster;
-    
-    List attri_List = Attributes_List_manual(const_data.data, const_data.data.ncol());
+
 
     // Update all clusters if none specified
     if (cluster_indexes.size() == 0) {
         for (int i = 0; i < num_cls; i++) {
             NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, i, state);
-            prob_centers = Center_prob(data_tmp, state.sigma[i], 
-                                    as<NumericVector>(const_data.attrisize));
-            state.center[i] = Samp_Center(attri_List, prob_centers, 
-                                        const_data.attrisize.length());
+            prob_centers = Center_prob(data_tmp, state.sigma[i], as<NumericVector>(const_data.attrisize));
+            state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
         }
     } else {
         // Update only specified clusters
         for (int idx : cluster_indexes) {
             if (idx >= 0 && idx < num_cls) {
                 NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, idx, state);
-                prob_centers = Center_prob(data_tmp, state.sigma[idx], 
-                                        as<NumericVector>(const_data.attrisize));
-                state.center[idx] = Samp_Center(attri_List, prob_centers, 
-                                            const_data.attrisize.length());
+                prob_centers = Center_prob(data_tmp, state.sigma[idx], as<NumericVector>(const_data.attrisize));
+                state.center[idx] = sample_center_1_cluster(const_data.attrisize, prob_centers);
             }
         }
     }

@@ -172,7 +172,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                                 Named("final_ass") = IntegerVector(data.nrow())                           
                                 );
 
-    auto start_time = std::chrono::high_resolution_clock::now();
+    auto start_time =  std::chrono::steady_clock::now();
     Rcpp::Rcout << "\nStarting Markov Chain sampling..." << std::endl;
 
     double acpt_ratio = 0.0;
@@ -221,7 +221,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
         // Update progress bar
         if(verbose == 0)
-            print_progress_bar(iter + 1, iterations + burnin);
+            print_progress_bar(iter + 1, iterations + burnin, start_time);
 
         // Save results
         if(iter >= burnin){
@@ -239,7 +239,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             
         }
     }
-    auto end_time = std::chrono::high_resolution_clock::now();
+    
+    auto end_time = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
     Rcpp::Rcout << std::endl << "Markov Chain sampling completed in: "<< duration.count() << " s " << std::endl;
 
