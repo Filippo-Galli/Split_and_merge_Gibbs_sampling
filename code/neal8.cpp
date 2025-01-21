@@ -8,19 +8,24 @@
 
 using namespace Rcpp;
 
-/**
- * @brief Sample new allocation for a single observation using Neal's Algorithm 8
- */
 void sample_allocation(const int index_i, const aux_data & constant_data, 
                      internal_state & state, const int m, 
                      const IntegerVector & unique_classes_without_i) {
+    /**
+     * @brief Sample new cluster assignment for observation i
+     * @param index_i Index of observation i
+     * @param constant_data Auxiliary data for the MCMC algorithm
+     * @param state Internal state of the MCMC algorithm
+     * @param m Number of latent classes
+     * @param unique_classes_without_i Vector of unique classes excluding the current observation
+     */
     
     // Get data point
-    NumericVector y_i = constant_data.data(index_i, _);
+    const NumericVector & y_i = constant_data.data(index_i, _);
 
-    IntegerVector uni_clas = unique_classes(state.c_i);
-    int k_minus = unique_classes_without_i.length();
-    int m_temp = uni_clas.length() == k_minus ? m : m - 1;
+    const IntegerVector uni_clas = unique_classes(state.c_i);
+    const int k_minus = unique_classes_without_i.length();
+    const int m_temp = uni_clas.length() == k_minus ? m : m - 1;
 
     // Store current parameters for initialization
     NumericVector temp_center = as<List>(state.center)[state.c_i[index_i]];

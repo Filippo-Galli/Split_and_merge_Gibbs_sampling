@@ -7,6 +7,11 @@
 double logdensity_hig(double sigmaj, double v, double w, double m){
     /**
      * @brief logdensity of hig(v,w,m)(sigmaj)
+     * @param sigmaj sigma parameter
+     * @param v v parameter
+     * @param w w parameter
+     * @param m number of attribute levels
+     * @return logdensity of hig(v,w,m)(sigmaj)
      */
     double K = norm_const(w ,v, m); 
     return log(K) - (w + 1)/sigmaj - (v + w)*log(1+exp(-1/sigmaj)*(m-1)) - 2*log(sigmaj);
@@ -15,6 +20,14 @@ double logdensity_hig(double sigmaj, double v, double w, double m){
 
 double logprobgs_phi(const internal_state & gamma_star, const internal_state & gamma,
                     const aux_data & const_data, const int & choosen_idx) {
+    /**
+     * @brief Compute the probability of the parameters - paper reference: P_{GS}(\phi*|phi^L, y)
+     * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
+     * @param gamma state containing the launch cluster assignment, launch cluster centers, and launch cluster dispersions - paper reference: (c^L, \phi^L)
+     * @param const_data auxiliary data for the MCMC algorithm containing the input data matrix, attribute sizes, and hypergeometric parameters
+     * @param choosen_idx index of the chosen observation
+     */
+
     double log_center_prob = 0;
     
     // Get cluster for chosen observation
@@ -211,10 +224,17 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
     }*/
 }
 
-// Helper functions for launch state construction
 void select_observations(const internal_state & state, 
                        int & i_1, int & i_2,
                        std::vector<int> & S) {
+    /**
+     * @brief Select two observations and populate S with indexes in selected clusters
+     * @param state Internal state of the MCMC algorithm
+     * @param i_1 Index of the first chosen observation
+     * @param i_2 Index of the second chosen observation
+     * @param S Vector of indices of observations in the same cluster of i_1 or i_2
+     */
+
     int n = state.c_i.size();
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -240,6 +260,17 @@ internal_state split_launch_state(const std::vector<int> & S,
                                 const internal_state & state,
                                 int i_1, int i_2, int t,
                                 const aux_data & const_data) {
+    /**
+     * @brief Generate the launch state for the split move
+     * @param S Vector of indices of observations in the same cluster of i_1 or i_2
+     * @param state Internal state of the MCMC algorithm
+     * @param i_1 Index of the first chosen observation
+     * @param i_2 Index of the second chosen observation
+     * @param t Number of restricted Gibbs scans
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @return Internal state of the MCMC algorithm
+     */
+
     // Initialize split launch state
     IntegerVector c_L_split = clone(state.c_i);
     List center_L_split = clone(state.center);
@@ -285,6 +316,17 @@ internal_state merge_launch_state(const std::vector<int> & S,
                                 const internal_state & state,
                                 int i_1, int i_2, int r,
                                 const aux_data & const_data) {
+    /**
+     * @brief Generate the launch state for the merge move
+     * @param S Vector of indices of observations in the same cluster of i_1 or i_2
+     * @param state Internal state of the MCMC algorithm
+     * @param i_1 Index of the first chosen observation
+     * @param i_2 Index of the second chosen observation
+     * @param r Number of restricted Gibbs scans
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @return Internal state of the MCMC algorithm
+     */
+
     // Initialize merge launch state
     IntegerVector c_L_merge = clone(state.c_i);
     List center_L_merge = clone(state.center);
@@ -320,8 +362,15 @@ internal_state merge_launch_state(const std::vector<int> & S,
     return state_launch_merge;
 }
 
-// Helper functions for probability calculations
 double loglikelihood_hamming(const internal_state & state, int c, const aux_data & const_data) {
+    /**
+     * @brief Compute the log-likelihood of the current state
+     * @param state Internal state of the MCMC algorithm
+     * @param c Cluster index
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @return Log-likelihood of the current state
+     */
+
     double loglikelihood = 0.0;
     NumericVector center = as<NumericVector>(state.center[c]);
     NumericVector sigma = as<NumericVector>(state.sigma[c]);
@@ -341,6 +390,13 @@ double loglikelihood_hamming(const internal_state & state, int c, const aux_data
 }
 
 int cls_elem(const internal_state & state, int c) {
+    /**
+     * @brief Count the number of elements in cluster c
+     * @param state Internal state of the MCMC algorithm
+     * @param c Cluster index
+     * @return Number of elements in cluster c
+     */
+
     int f = 0;
     for (int i = 0; i < state.c_i.length(); i++) {
         if (state.c_i[i] == c) f++;
@@ -350,8 +406,13 @@ int cls_elem(const internal_state & state, int c) {
 
 double priors(const internal_state & state, int c, const aux_data & const_data){
     /**
-     * @brief prior of the parameters associated to cluster c 
+     * @brief Compute the prior of the current state
+     * @param state Internal state of the MCMC algorithm
+     * @param c Cluster index
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @return Prior of the current state
      */
+
 
     NumericVector sigma = as<List>(state.sigma)[c];
 
@@ -363,7 +424,6 @@ double priors(const internal_state & state, int c, const aux_data & const_data){
     return priorg;
 }
 
-// Split acceptance probability calculations
 double split_acc_prob(const internal_state & state_split,
                      const internal_state & state,
                      const internal_state & split_launch,
@@ -371,6 +431,18 @@ double split_acc_prob(const internal_state & state_split,
                      const std::vector<int> & S,
                      int i_1, int i_2,
                      const aux_data & const_data) {
+    /**
+     * @brief Compute the acceptance probability for the split move
+     * @param state_split State after the split move
+     * @param state Current state
+     * @param split_launch Launch state for the split move
+     * @param merge_launch Launch state for the merge move
+     * @param S Vector of indices of observations in the same cluster of i_1 or i_2
+     * @param i_1 Index of the first chosen observation
+     * @param i_2 Index of the second chosen observation
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @return log-acceptance probability for the split move
+     */
     
     double alpha = const_data.gamma;
     double log_ratio = 0.0;
@@ -418,6 +490,18 @@ double merge_acc_prob(const internal_state & state_merge,
                      const std::vector<int> & S,
                      int i_1, int i_2,
                      const aux_data & const_data) {
+    /**
+     * @brief Compute the acceptance probability for the merge move
+     * @param state_merge State after the merge move
+     * @param state Current state
+     * @param split_launch Launch state for the split move
+     * @param merge_launch Launch state for the merge move
+     * @param S Vector of indices of observations in the same cluster of i_1 or i_2
+     * @param i_1 Index of the first chosen observation
+     * @param i_2 Index of the second chosen observation
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @return log-acceptance probability for the merge move
+     */    
     
     double alpha = const_data.gamma;
     double log_ratio = 0.0;
@@ -457,7 +541,6 @@ double merge_acc_prob(const internal_state & state_merge,
     return log_ratio;
 }
 
-// Implementation of split&merge step
 void split_and_merge(internal_state & state,
                     const aux_data & const_data,
                     int t, int r,
@@ -467,6 +550,28 @@ void split_and_merge(internal_state & state,
                     int & merge_n,
                     int & accepted_merge,
                     int & accepted_split) {
+    /**
+     * @brief Perform the split and merge move
+     * @param state Internal state of the MCMC algorithm
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @param t Number of restricted Gibbs scans for the split move
+     * @param r Number of restricted Gibbs scans for the merge move
+     * @param acpt_ratio Acceptance ratio
+     * @param accepted Number of accepted moves
+     * @param split_n Number of split moves
+     * @param merge_n Number of merge moves
+     * @param accepted_merge Number of accepted merge moves
+     * @param accepted_split Number of accepted split moves
+     * @return Updated state of the MCMC algorithm
+     * @return Updated acceptance ratio
+     * @return Updated number of accepted moves
+     * @return Updated number of split moves
+     * @return Updated number of merge moves
+     * @return Updated number of accepted merge moves
+     * @return Updated number of accepted split moves
+     * @return Updated state of the MCMC algorithm
+     * @return Updated acceptance ratio  
+     */
     
     int i_1, i_2;
     std::vector<int> S;

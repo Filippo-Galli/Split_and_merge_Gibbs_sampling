@@ -23,6 +23,16 @@ bool debug_var = false;
 namespace debug {
     template<typename... Args>
     void print(unsigned int tab_level, const char* func_name, int line, const std::string& message, const Args&... args) {
+        /**
+         * @brief Print a debug message to the console
+         * @param tab_level Number of tabs to indent the message
+         * @param func_name Name of the function where the message is printed
+         * @param line Line number where the message is printed
+         * @param message Message to print
+         * @param args Additional arguments to format the message
+         * @note This function is used to print debug messages to the console
+         *      with additional information such as the function name and line number
+         */
         std::stringstream ss;
         for(unsigned int i = 0; i < tab_level; ++i) {
             ss << '\t';
@@ -66,6 +76,13 @@ struct aux_data {
 
 // Utility functions
 inline double log_sum_exp(const std::vector<double>& log_values) {
+    /**
+     * @brief Compute the log sum of exponentials
+     * @param log_values Vector of log values
+     * @return Log sum of exponentials
+     * @note This function is used to compute the log sum of exponentials
+     *      for numerical stability in log-space calculations
+     */
     if (log_values.empty()) return -std::numeric_limits<double>::infinity();
     double max_val = *std::max_element(log_values.begin(), log_values.end());
     double sum = 0.0;
@@ -77,6 +94,13 @@ inline double log_sum_exp(const std::vector<double>& log_values) {
 
 // Print functions
 void print_internal_state(const internal_state& state, int interest = -1) {
+    /**
+     * @brief Print internal state of the MCMC sampler
+     * @param state Internal state of the MCMC sampler
+     * @param interest Level of detail to print (default: -1)
+     * @note This function is used to print the internal state of the MCMC sampler
+     *      for debugging and visualization purposes
+     */
     if(debug_var){
         if(interest == 1 || interest == -1){
             Rcpp::Rcout << "Cluster assignments: " << std::endl << "\t";
@@ -127,12 +151,22 @@ void print_progress_bar(int progress, int total, int bar_width = 50) {
 
 // Initialization functions
 IntegerVector sample_initial_assignment(double K = 4, int n = 10) {
+    /**
+     * @brief Sample initial cluster assignments
+     * @param K Number of clusters
+     * @param n Number of observations
+     */
     IntegerVector cluster_assignments = Rcpp::sample(K, n, true); 
     cluster_assignments = cluster_assignments - 1; 
     return cluster_assignments;
 }
 
 NumericVector sample_center_1_cluster(const IntegerVector & attrisize) {
+    /**
+     * @brief Sample center for a single cluster
+     * @param attrisize Vector of attribute sizes
+     * @return NumericVector containing the sampled center
+     */
     NumericVector center(attrisize.length());
     for (int j = 0; j < attrisize.length(); j++) {
         center[j] = sample(attrisize[j], 1, true)[0];
@@ -141,6 +175,12 @@ NumericVector sample_center_1_cluster(const IntegerVector & attrisize) {
 }
 
 List sample_centers(const int number_cls, const IntegerVector & attrisize) {
+    /**
+     * @brief Sample centers for all clusters
+     * @param number_cls Number of clusters
+     * @param attrisize Vector of attribute sizes
+     * @return List containing the sampled centers
+     */
     List centers(number_cls);
     for (int c = 0; c < number_cls; c++) {
         centers[c] = sample_center_1_cluster(attrisize);
@@ -151,6 +191,14 @@ List sample_centers(const int number_cls, const IntegerVector & attrisize) {
 NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize, 
                                    const NumericVector & v, 
                                    const NumericVector & w) {
+    /**
+     * @brief Sample sigma for a single cluster
+     * @param attrisize Vector of attribute sizes
+     * @param v Vector of v parameters
+     * @param w Vector of w parameters
+     * @return NumericVector containing the sampled sigma
+     */
+
     NumericVector sigma(attrisize.length());
     for (int j = 0; j < attrisize.length(); j++) {
         sigma[j] = rhyper_sig(1, w[j], v[j], attrisize[j])[0];
@@ -159,6 +207,12 @@ NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize,
 }
 
 List sample_sigmas(const int number_cls, const aux_data & const_data) {
+    /**
+     * @brief Sample sigmas for all clusters
+     * @param number_cls Number of clusters
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @return List containing the sampled sigmas
+     */
     List sigma(number_cls);
     for (int i = 0; i < number_cls; i++) {
         sigma[i] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
@@ -166,14 +220,24 @@ List sample_sigmas(const int number_cls, const aux_data & const_data) {
     return sigma;
 }
 
-// Common utility functions
 IntegerVector unique_classes(const IntegerVector & c_i) {
+    /**
+     * @brief Get unique classes from cluster assignments
+     * @param c_i Cluster assignments
+     * @return IntegerVector containing unique classes
+     */
     IntegerVector unique_vec = unique(c_i);
     std::sort(unique_vec.begin(), unique_vec.end());
     return unique_vec;
 }
 
 IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int index_to_del) {
+    /**
+     * @brief Get unique classes excluding a specific index
+     * @param c_i Cluster assignments
+     * @param index_to_del Index to exclude
+     * @return IntegerVector containing unique classes
+     */
     std::set<double> unique_classes;
     for (int i = 0; i < c_i.length(); ++i) {
         if (i != index_to_del) {
@@ -184,6 +248,14 @@ IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int 
 }
 
 int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) {
+    /**
+     * @brief Count members of a cluster excluding a specific index
+     * @param c_i Cluster assignments
+     * @param exclude_index Index to exclude
+     * @param cls Cluster index
+     * @return Number of members in the cluster
+     */
+
     if (exclude_index < 0 || exclude_index >= c_i.length()) {
         Rcpp::warning("Exclude index %d is out of bounds for vector of length %d", 
                      exclude_index, c_i.length());
@@ -203,7 +275,15 @@ void clean_var(internal_state & updated_state,
               const internal_state & current_state, 
               const IntegerVector& existing_cls, 
               const IntegerVector& attrisize) {
-    
+    /**
+     * @brief Clean variables and update state
+     * @param updated_state Updated internal state
+     * @param current_state Current internal state
+     * @param existing_cls Existing cluster indices
+     * @param attrisize Vector of attribute sizes
+     * @note This function is used to clean variables and update the internal state
+     *     after sampling new cluster assignments
+     */
     int num_existing_cls = existing_cls.length();
     std::unordered_map<int, int> cls_to_new_index;
     
@@ -241,6 +321,13 @@ void clean_var(internal_state & updated_state,
 }
 
 double compute_loglikelihood(internal_state & state, aux_data & const_data) {
+    /**
+     * @brief Compute log-likelihood of the current state
+     * @param state Internal state of the MCMC sampler
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @return Log-likelihood of the current state
+     */
+
     double loglikelihood = 0.0;
     for (int i = 0; i < const_data.n; i++) {
         int cluster = state.c_i[i];
@@ -260,11 +347,13 @@ double compute_loglikelihood(internal_state & state, aux_data & const_data) {
 
 NumericMatrix subset_data_for_cluster(const NumericMatrix & data, int cluster, const internal_state & state) {
     /**
-     * @brief Extract data for a specific cluster
+     * @brief Subset data for a specific cluster
      * @param data Input data matrix
      * @param cluster Cluster index
-     * @return NumericMatrix containing data for the specified cluster
+     * @param state Internal state of the MCMC sampler
+     * @return NumericMatrix containing the subset of data
      */
+
     IntegerVector cluster_indices;
     for (int i = 0; i < as<NumericVector>(state.c_i).length(); ++i) 
         if ( as<NumericVector>(state.c_i)[i] == cluster) 
@@ -279,12 +368,16 @@ NumericMatrix subset_data_for_cluster(const NumericMatrix & data, int cluster, c
     return cluster_data;
 }
 
-
-/**
- * @brief Update cluster centers
- */
 void update_centers(internal_state & state, const aux_data & const_data, 
                    std::vector<int> cluster_indexes = {}) {
+    /**
+     * @brief Update cluster centers
+     * @param state Internal state of the MCMC sampler
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @param cluster_indexes Vector of cluster indexes to update (default: empty)
+     * @note This function is used to update cluster centers based on the current state
+     *    and the input data
+     */
     IntegerVector clusters = unique_classes(state.c_i);
     int num_cls = state.total_cls;
     List prob_centers;
@@ -317,11 +410,19 @@ void update_centers(internal_state & state, const aux_data & const_data,
     }
 }
 
-/**
- * @brief Update cluster dispersions (sigma)
- */
 void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, 
                  const aux_data & const_data, std::vector<int> clusters_to_update = {}) {
+    /**
+     * @brief Update cluster sigmas
+     * @param sigma List of sigmas
+     * @param centers List of centers
+     * @param c_i Cluster assignments
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @param clusters_to_update Vector of cluster indexes to update (default: empty)
+     * @note This function is used to update cluster sigmas based on the current state
+     *   and the input data
+     */
+    
     int num_cls = sigma.length();
     NumericVector new_w(const_data.attrisize.length());
     NumericVector new_v(const_data.attrisize.length());

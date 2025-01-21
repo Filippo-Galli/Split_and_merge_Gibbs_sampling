@@ -50,12 +50,12 @@ Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 v = c(rep(6,12),3,rep(6,3))
 w = c(rep(0.25,12),0.5,rep(0.25,3))
 
-zoo.subset <- zoo[which(unlist(groundTruth) %in% c(1,2,3)),]
-groundTruth.subset <- unlist(groundTruth)[which(unlist(groundTruth) %in% c(1,2, 3))]
+#zoo.subset <- zoo[which(unlist(groundTruth) %in% c(1,2,3)),]
+#groundTruth.subset <- unlist(groundTruth)[which(unlist(groundTruth) %in% c(1,2, 3))]
 
 L_plurale <- c(7)
-iterations <- 8000
-burnin <- 7000
+iterations <- 10000
+burnin <- 8000
 m <- 3
 
 #n <- length(groundTruth.subset)
@@ -89,18 +89,16 @@ for(l in L_plurale){
                           t = 10, 
                           r = 10,
                           neal8 = TRUE,
-                          split_merge = TRUE)
+                          split_merge = FALSE)
   #sink()
   result_name = paste(result_name, "init_ass_", sep="")
 
   # Save results
-  filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time, "_S&M",".RData", sep = "")
+  #filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time, "_S&M",".RData", sep = "")
+  filename <- paste("../results/Neal8_OneInOne_", iterations, "_", burnin,"_",temp_time, sep="")
   save(results, file = filename)
   print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 }
-
-table(results$final_ass)
-table(unlist(groundTruth))
 
 ### Posterior similarity matrix
 results_dir <- file.path(getwd(), "../results")
