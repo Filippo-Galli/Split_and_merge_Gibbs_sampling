@@ -55,7 +55,7 @@ w = c(rep(0.25,12),0.5,rep(0.25,3))
 
 L_plurale <- c(7)
 iterations <- 10000
-burnin <- 8000
+burnin <- 15000
 m <- 3
 
 #n <- length(groundTruth.subset)
@@ -86,10 +86,10 @@ for(l in L_plurale){
                           #c_i = rep(0,nrow(zoo)),
                           #c_i = seq(1,nrow(zoo)),
                           burnin = burnin,
-                          t = 10, 
-                          r = 10,
+                          t = 30, 
+                          r = 30,
                           neal8 = TRUE,
-                          split_merge = FALSE)
+                          split_merge = TRUE)
   #sink()
   result_name = paste(result_name, "init_ass_", sep="")
 

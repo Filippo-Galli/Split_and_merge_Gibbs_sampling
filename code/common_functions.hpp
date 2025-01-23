@@ -359,8 +359,8 @@ void clean_var(internal_state & updated_state,
     List new_sigma(num_existing_cls);
 
     for(int i = 0; i < num_existing_cls; ++i) {
-        new_center[i] = current_state.center[existing_cls[i]];
-        new_sigma[i] = current_state.sigma[existing_cls[i]];
+        new_center[cls_to_new_index[existing_cls[i]]] = current_state.center[existing_cls[i]];
+        new_sigma[cls_to_new_index[existing_cls[i]]] = current_state.sigma[existing_cls[i]];
     }
 
     updated_state.center = std::move(new_center);

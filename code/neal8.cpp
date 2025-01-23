@@ -107,7 +107,7 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
     for (int i = 0; i < state_temp.total_cls; ++i) {
         cls[i] = i;
     }
-
+    probs = probs / max(probs);
     probs = probs / sum(probs);    
 
     // Sample new allocation
