@@ -36,6 +36,6 @@
 .Rhistory
 
 # Useless data 
-./plot/
-./print/
-./results/
+./plot/*
+./print/*
+./results/*

@@ -38,25 +38,11 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 # Neal sampler
 #=========================================================================================
 
-## Obbligatorie per Filippo perché RcppGSL non trova le librerie GSL e nemmeno RcppGSL.h
-# First, use the explicit include path from RcppGSL
-#Sys.setenv("PKG_CXXFLAGS" = paste0("-O3 ", "-I/home/filippo/R/x86_64-pc-linux-gnu-library/4.4/RcppGSL/include", 
-#                                   " -I/usr/local/include"))
-
-Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-library/4.4/RcppGSL/include"', " -I/usr/local/include"))
-
-# Include full library paths and libraries
-Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
+#Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-library/4.4/RcppGSL/include"', " -I/usr/local/include"))
+#Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 
 v = c(rep(6,12),3,rep(6,3))
 w = c(rep(0.25,12),0.5,rep(0.25,3))
-
-#zoo.subset <- zoo[which(unlist(groundTruth) %in% c(1,2,3)),]
-#groundTruth.subset <- unlist(groundTruth)[which(unlist(groundTruth) %in% c(1,2, 3))]
-
-#n <- length(groundTruth.subset)
-#zoo <- zoo.subset 
-#groundTruth <- groundTruth.subset
 
 Rcpp::sourceCpp("../code/neal8.cpp")
 n8 <- TRUE
@@ -72,11 +58,11 @@ if(sam){
 }
 
 L_plurale <- c(101)
-iterations <- 50000
+iterations <- 10000
 burnin <- 20000
 m <- 3
-t <- 25
-r <- 25
+t <- 30
+r <- 30
 
 for(l in L_plurale){
   temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
@@ -169,7 +155,6 @@ for(l in L_plurale){
   result_name = paste(result_name, "time", results$time, sep = "_")
   
   # Save results
-  #filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time, "_S&M",".RData", sep = "")
   filename <- paste("../results/", result_name, ".RData", sep = "")
   save(results, file = filename)
   print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
@@ -194,13 +179,11 @@ for (file in rdata_files) {
   file_base <- tools::file_path_sans_ext(basename(file))
   
   # Create a folder for saving plots if it doesn't exist
-  output_dir <- paste("../print/plot",file_base, sep = "_")  # Change this to your desired folder
+  output_dir <- paste("../print/plot", file_base, sep = "_")  # Change this to your desired folder
   if (!dir.exists(output_dir)) {
     dir.create(output_dir)
   }
-  
-  
-  
+
   ### First plot - Posterior distribution of the number of clusters
   # Calculation
   post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
@@ -299,20 +282,16 @@ for (file in rdata_files) {
   
   cat("\nAdjusted Rand Index:", arandi(VI$cl, groundTruth), "\n")
   arandi(VI$cl, groundTruth)
-  png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), 
-      width = 800, height = 800)
+  png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), width = 800, height = 800)
   myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
   dev.off()  # Close the device to save the first plot
-  dev.off()
   
   # Save the second plot
-  png(filename = file.path(output_dir, paste0(file_base, "m_gt.png")), 
-      width = 800, height = 800)
+  png(filename = file.path(output_dir, paste0(file_base, "m_gt.png")), width = 800, height = 800)
   myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
   dev.off()  # Close the device to save the second plot
   
-  png(filename = file.path(output_dir, paste0(file_base, "m_s.png")), 
-      width = 800, height = 800)
+  png(filename = file.path(output_dir, paste0(file_base, "m_s.png")), width = 800, height = 800)
   myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
   dev.off()
   

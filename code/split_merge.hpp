@@ -205,10 +205,11 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
             // Count instances in the cluster excluding the current point s
             n_s_cls = count_cluster_members(state.c_i, s, cls);
 
-            probs[k] =  n_s_cls * std::exp(Hamming);
+            probs[k] =  log(n_s_cls) + Hamming;
         }
 
         // Normalize probabilities
+        probs = exp(probs - max(probs));
         probs = probs / sum(probs);
        
         // Sample new cluster assignment between the two clusters of i_1 and i_2
@@ -278,28 +279,18 @@ internal_state split_launch_state(const std::vector<int> & S,
 
     if(state.c_i[i_1] == state.c_i[i_2]) {
         c_L_split[i_1] = unique_classes(state.c_i).length();
-        center_L_split.push_back(0);
-        sigma_L_split.push_back(0);
+        center_L_split.push_back(sample_center_1_cluster(const_data.attrisize));
+        sigma_L_split.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
     }
 
     // Random allocation of S between clusters
     IntegerVector S_indexes = wrap(S);
-    c_L_split[S_indexes] = sample(IntegerVector::create(c_L_split[i_1], c_L_split[i_2]), 
-                                S_indexes.length(), true);
+    c_L_split[S_indexes] = sample(IntegerVector::create(c_L_split[i_1], c_L_split[i_2]), S_indexes.length(), true);
 
-    // Sample new parameters
-    center_L_split[c_L_split[i_1]] = sample_center_1_cluster(const_data.attrisize);
-    sigma_L_split[c_L_split[i_1]] = sample_sigma_1_cluster(const_data.attrisize, 
-                                                         const_data.v, const_data.w);
-    center_L_split[c_L_split[i_2]] = sample_center_1_cluster(const_data.attrisize);
-    sigma_L_split[c_L_split[i_2]] = sample_sigma_1_cluster(const_data.attrisize, 
-                                                         const_data.v, const_data.w);
+    internal_state state_launch_split = {c_L_split, center_L_split, sigma_L_split, static_cast<int>(unique_classes(c_L_split).length())};
 
-    internal_state state_launch_split = {c_L_split, center_L_split, sigma_L_split,
-                                       static_cast<int>(unique_classes(c_L_split).length())};
-
-    clean_var(state_launch_split, state_launch_split, 
-             unique_classes(state_launch_split.c_i), const_data.attrisize);
+    // Da controllare che funzioni siccome usa lo stesso stato come input e output
+    clean_var(state_launch_split, state_launch_split, unique_classes(state_launch_split.c_i), const_data.attrisize);
 
     // Intermediate Gibbs sampling
     for(int iter = 0; iter < t; ++iter) {
@@ -345,9 +336,6 @@ internal_state merge_launch_state(const std::vector<int> & S,
 
     internal_state state_launch_merge = {c_L_merge, center_L_merge, sigma_L_merge,
                                        static_cast<int>(unique_classes(c_L_merge).length())};
-
-    clean_var(state_launch_merge, state_launch_merge,
-             unique_classes(state_launch_merge.c_i), const_data.attrisize);
 
     // Update parameters r times
     for(int iter = 0; iter < r; ++iter) {
