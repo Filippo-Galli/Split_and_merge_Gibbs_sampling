@@ -1291,7 +1291,10 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                                 Named("c_i") = List(iterations),
                                 Named("centers") = List(iterations),
                                 Named("sigmas") = List(iterations), 
+                                Named("drop_iter") = IntegerVector(iterations,0),
+                                Named("drop_iter_bfsam") = IntegerVector(iterations,0),
                                 Named("loglikelihood") = NumericVector(iterations), 
+                                Named("loglikelihood_bfsam") = NumericVector(iterations), 
                                 Named("acceptance_ratio") = NumericVector(iterations),
                                 Named("accepted") = IntegerVector(iterations),
                                 Named("split_n") = IntegerVector(iterations),
@@ -1335,6 +1338,12 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             print_internal_state(state);
         }
 
+        double loglikelihood_bfsam = compute_loglikelihood(state, const_data);
+
+        if(loglikelihood_bfsam<1000){
+            as<NumericVector>(results["drop_iter_bfsam"])[iter - burnin] = 1;
+        }
+
         // Split and merge step
         if(split_merge){
             split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n, accepted_merge, accepted_split);
@@ -1348,6 +1357,10 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         // Calculate likelihood
         double loglikelihood = compute_loglikelihood(state, const_data);
 
+        if(loglikelihood<1000){
+            as<NumericVector>(results["drop_iter"])[iter - burnin] = 1;
+        }
+
         // Update progress bar
         if(verbose == 0)
             print_progress_bar(iter + 1, iterations + burnin);
@@ -1359,6 +1372,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             as<List>(results["centers"])[iter - burnin] = clone(state.center);
             as<List>(results["sigmas"])[iter - burnin] = clone(state.sigma);
             as<NumericVector>(results["loglikelihood"])[iter - burnin] = loglikelihood;
+            as<NumericVector>(results["loglikelihood_bfsam"])[iter - burnin] = loglikelihood_bfsam;
             as<NumericVector>(results["acceptance_ratio"])[iter - burnin] = acpt_ratio;
             as<IntegerVector>(results["accepted"])[iter - burnin] = accepted;
             as<IntegerVector>(results["split_n"])[iter - burnin] = split_n;

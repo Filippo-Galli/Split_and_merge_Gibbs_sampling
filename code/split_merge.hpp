@@ -449,7 +449,6 @@ double split_acc_prob(const internal_state & state_split,
     double log_prior = 0.0;
     double log_likelihood = 0.0;
     double log_proposal = 0.0;
-    double logp = 0.0;
 
     // Prior ratio
     log_prior += std::log(alpha);

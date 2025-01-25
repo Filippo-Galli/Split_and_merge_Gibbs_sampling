@@ -436,6 +436,231 @@ myplotpsm = function (psm, classes, ax = T, ay = T, cex.Row = 0.8, cex.Col = 0.8
              smallplot= c(0.02,0.9,0.1,0.15))
 }
 
+myplotpsm_gt <- function(psm, ground, classes, ax = TRUE, ay = TRUE, 
+                         cex.Row = 0.8, cex.Col = 0.8, method = "complete", ...) {
+  library(pheatmap)
+  library(RColorBrewer)
+
+  # Validate the PSM input
+  if (any(psm != t(psm)) | any(psm > 1) | any(psm < 0) | sum(diag(psm)) != nrow(psm)) {
+    stop("psm must be a symmetric matrix with entries between 0 and 1 and 1's on the diagonals")
+  }
+
+  n <- nrow(psm)
+  #ord <- order(classes)  # Order rows/columns based on classes
+
+  ord <- unlist(lapply(unique(classes), function(cls) {
+    indices <- which(classes == cls)       # Get indices for this class
+    indices[order(ground[indices])]        # Order those indices by ground truth
+  }))
+
+  # Order the PSM matrix
+  psm_ordered <- psm[ord, ord]
+  colnames(psm_ordered) = paste("c", 1:n, sep = "")
+
+  annotation_col = data.frame(
+                    GT = factor(ground[ord]),
+                    VI = factor(classes[ord])
+                )
+  rownames(annotation_col) = paste("c", 1:n, sep = "")
+
+  # Combine multiple palettes
+  combined_palette <- c(
+    brewer.pal(12, "Set3"), 
+    brewer.pal(8, "Set2"), 
+    brewer.pal(9, "Set1"),
+    brewer.pal(8, "Dark2")
+  )
+
+  # Ensure enough colors for the number of classes
+  n_classes <- length(unique(ground))
+  if (n_classes > length(combined_palette)) {
+    stop("Not enough unique colors available in combined palette")
+  }
+
+  # Assign colors to GT and VI
+  gt_colors <- setNames(combined_palette[1:n_classes], unique(ground))
+  vi_colors <- setNames(combined_palette[1:length(unique(VI$cl))], unique(VI$cl))
+
+  # Annotation colors
+  ann_colors <- list(GT = gt_colors, VI = vi_colors)
+
+  # Create the heatmap with annotations
+  pheatmap(
+    psm_ordered,
+    cluster_rows = FALSE,         # Maintain the order from the classes
+    cluster_cols = FALSE,         # No clustering for columns
+    annotation_col = annotation_col,
+    annotation_colors = ann_colors,
+    color = colorRampPalette(c( "white","yellow","orange", "red"))(50),  # Heatmap colors
+    show_rownames = ax,           # Show row names based on ax
+    show_colnames = ay,           # Show col names based on ay
+    fontsize_row = cex.Row * 10,  # Adjust font size for rows
+    fontsize_col = cex.Col * 10,  # Adjust font size for cols
+    main = "PSM Heatmap with Annotations",  # Title
+    legend = TRUE,                # Show the legend
+    border_color = NA,            # Remove borders
+    ...
+  )
+  
+}
+
+myplotpsm_gt_sep <- function(psm, ground, classes, ax = TRUE, ay = TRUE, gt = 1,
+                         cex.Row = 0.8, cex.Col = 0.8, method = "complete", ...) {
+  library(pheatmap)
+  library(RColorBrewer)
+
+  # Validate the PSM input
+  if (any(psm != t(psm)) | any(psm > 1) | any(psm < 0) | sum(diag(psm)) != nrow(psm)) {
+    stop("psm must be a symmetric matrix with entries between 0 and 1 and 1's on the diagonals")
+  }
+
+  n <- nrow(psm)
+  #ord <- order(classes)  # Order rows/columns based on classes
+
+  ord <- unlist(lapply(unique(classes), function(cls) {
+    indices <- which(classes == cls)       # Get indices for this class
+    indices[order(ground[indices])]        # Order those indices by ground truth
+  }))
+
+  # Order the PSM matrix
+  psm_ordered <- psm[ord, ord]
+  colnames(psm_ordered) = paste("c", 1:n, sep = "")
+
+  annotation_col = data.frame(
+                    GT = factor(ground[ord]),
+                    VI = factor(classes[ord])
+                )
+  rownames(annotation_col) = paste("c", 1:n, sep = "")
+
+  # Find boundaries for gaps
+  if(gt == 1){
+    gaps_col <- which(diff(as.numeric(annotation_col$GT)) != 0)
+    gaps_row <- which(diff(as.numeric(annotation_col$GT)) != 0)
+  }
+  else{
+    gaps_col <- which(diff(as.numeric(annotation_col$VI)) != 0)
+    gaps_row <- which(diff(as.numeric(annotation_col$VI)) != 0)
+  }
+  
+  # Combine multiple palettes
+  combined_palette <- c(
+    brewer.pal(12, "Set3"), 
+    brewer.pal(8, "Set2"), 
+    brewer.pal(9, "Set1"),
+    brewer.pal(8, "Dark2")
+  )
+
+  # Ensure enough colors for the number of classes
+  n_classes <- length(unique(ground))
+  if (n_classes > length(combined_palette)) {
+    stop("Not enough unique colors available in combined palette")
+  }
+
+  # Assign colors to GT and VI
+  gt_colors <- setNames(combined_palette[1:n_classes], unique(ground))
+  vi_colors <- setNames(combined_palette[1:length(unique(VI$cl))], unique(VI$cl))
+
+  # Annotation colors
+  ann_colors <- list(GT = gt_colors, VI = vi_colors)
+
+  # Create the heatmap with gaps
+  pheatmap(
+    psm_ordered,
+    cluster_rows = FALSE,         # Maintain the order from the classes
+    cluster_cols = FALSE,         # No clustering for columns
+    annotation_col = annotation_col,
+    gaps_col = gaps_col,          # Add column separators
+    gaps_row = gaps_row,          # Add row separators
+    color = colorRampPalette(c( "white","yellow","orange", "red"))(50),  # Heatmap colors
+    show_rownames = ax,           # Show row names based on ax
+    show_colnames = ay,           # Show col names based on ay
+    fontsize_row = cex.Row * 10,  # Adjust font size for rows
+    fontsize_col = cex.Col * 10,  # Adjust font size for cols
+    main = "PSM Heatmap with Annotations",  # Title
+    legend = TRUE,                # Show the legend
+    border_color = NA,            # Remove borders
+    ...
+  )
+  
+}
+
+
+myplotpsm_gt_trial <- function(psm, ground, classes, ax = TRUE, ay = TRUE, 
+                         cex.Row = 0.8, cex.Col = 0.8, method = "complete", ...) {
+  library(pheatmap)
+  library(RColorBrewer)
+
+  # Validate the PSM input
+  if (any(psm != t(psm)) | any(psm > 1) | any(psm < 0) | sum(diag(psm)) != nrow(psm)) {
+    stop("psm must be a symmetric matrix with entries between 0 and 1 and 1's on the diagonals")
+  }
+
+  n <- nrow(psm)
+  
+  # Order rows/columns based on classes and ground truth
+  ord <- unlist(lapply(unique(classes), function(cls) {
+    indices <- which(classes == cls)       # Get indices for this class
+    indices[order(ground[indices])]        # Order those indices by ground truth
+  }))
+
+  # Order the PSM matrix
+  psm_ordered <- psm[ord, ord]
+  colnames(psm_ordered) <- paste("c", 1:n, sep = "")
+
+  # Create annotations for GT and VI
+  annotation_col <- data.frame(
+    GT = factor(ground[ord]),
+    VI = factor(classes[ord])
+  )
+  rownames(annotation_col) <- paste("c", 1:n, sep = "")
+
+  # Combine multiple palettes
+  combined_palette <- c(
+    brewer.pal(12, "Set3"), 
+    brewer.pal(8, "Set2"), 
+    brewer.pal(9, "Set1"),
+    brewer.pal(8, "Dark2")
+  )
+
+  # Ensure enough colors for the number of classes
+  n_classes <- length(unique(ground))
+  n_vi_classes <- length(unique(classes))
+  if (max(n_classes, n_vi_classes) > length(combined_palette)) {
+    stop("Not enough unique colors available in combined palette")
+  }
+
+  # Map GT to VI to align colors
+  gt_to_vi_mapping <- setNames(unique(classes[ord]), unique(ground[ord]))
+
+  # Assign colors for GT and VI based on the mapping
+  gt_colors <- setNames(combined_palette[1:n_classes], unique(ground[ord]))
+  vi_colors <- gt_colors[gt_to_vi_mapping]  # Align VI colors with GT
+
+  # Annotation colors
+  ann_colors <- list(GT = gt_colors, VI = vi_colors)
+
+  # Create the heatmap with annotations
+  pheatmap(
+    psm_ordered,
+    cluster_rows = FALSE,         # Maintain the order from the classes
+    cluster_cols = FALSE,         # No clustering for columns
+    annotation_col = annotation_col,
+    annotation_colors = ann_colors,
+    color = colorRampPalette(c("white", "yellow", "orange", "red"))(50),  # Heatmap colors
+    show_rownames = ax,           # Show row names based on ax
+    show_colnames = ay,           # Show col names based on ay
+    fontsize_row = cex.Row * 10,  # Adjust font size for rows
+    fontsize_col = cex.Col * 10,  # Adjust font size for cols
+    main = "PSM Heatmap with Annotations",  # Title
+    legend = TRUE,                # Show the legend
+    border_color = NA,            # Remove borders
+    ...
+  )
+}
+
+
+
 ###### classification rate Zhang #####
 CR_zhang = function(out,truth){
   tb = table(out,truth)
