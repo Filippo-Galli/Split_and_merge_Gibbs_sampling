@@ -34,3 +34,8 @@
 # R
 .RData
 .Rhistory
+
+# Useless data 
+./plot/
+./print/
+./results/
