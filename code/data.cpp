@@ -478,7 +478,7 @@ void Data::clean_var(IntegerVector & c_to, DoubleMat & center_to, DoubleMat & si
     }
 }
 
-void Data::clean_var(IntegerVector & c, DoubleMat & center, DoubleMat & sigma,const  DoubleVec& existing_cls) const {
+void Data::clean_var(IntegerVector & c, DoubleMat & center, DoubleMat & sigma, const  DoubleVec& existing_cls) const {
     /**
      * @brief Remove empty clusters and update on the input variables
      * @param c Cluster assignments

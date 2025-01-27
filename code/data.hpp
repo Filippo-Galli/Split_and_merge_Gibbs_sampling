@@ -20,12 +20,32 @@ typedef IntegerVector IntVec;
 typedef NumericVector DoubleVec;
 typedef List DoubleMat;
 
+struct internal_state {
+    IntVec c_i;
+    DoubleMat center;
+    DoubleMat sigma;
+    int total_cls = 0;
+
+    internal_state() = default;
+};
+
+struct aux_data {
+    NumericMatrix data;
+    int n;
+    IntVec attrisize;
+    double gamma;
+    DoubleVec v;
+    DoubleVec w;
+
+    aux_data() = default;
+};
+
 class Data {
     private: 
     // State variables
     IntVec c;
-   DoubleMat center;
-   DoubleMat sigma;
+    DoubleMat center;
+    DoubleMat sigma;
     int total_cls = 0;
 
     // Parameters
