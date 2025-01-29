@@ -61,6 +61,7 @@ w = c(rep(0.25,12),0.5,rep(0.25,3))
 Rcpp::sourceCpp("../code/neal8.cpp")
 n8 <- TRUE
 sam <- TRUE
+step <- 100
 
 result_name_base = "Test"
 if(n8){
@@ -72,11 +73,11 @@ if(sam){
 }
 
 L_plurale <- c(101)
-iterations <- 30000
-burnin <- 30000
+iterations <- 40000
+burnin <- 40000
 m <- 3
-t <- 30
-r <- 30
+t <- 40
+r <- 40
 
 for(l in L_plurale){
   temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
@@ -102,7 +103,8 @@ for(l in L_plurale){
                                 t = t, 
                                 r = r,
                                 neal8 = n8,
-                                split_merge = sam)
+                                split_merge = sam,
+                                n8_step_size = step)
   }
   else if(l == 101){
     results <- run_markov_chain(data = zoo, 
@@ -113,13 +115,13 @@ for(l in L_plurale){
                                 verbose = 0, 
                                 m = m, 
                                 iterations = iterations,
-                                L = l,
                                 c_i = seq(1,nrow(zoo)),
                                 burnin = burnin,
                                 t = t, 
                                 r = r,
                                 neal8 = n8,
-                                split_merge = sam)
+                                split_merge = sam,
+                                n8_step_size = step)
   }
   else if(l == 0){
     results <- run_markov_chain(data = zoo, 
@@ -135,7 +137,8 @@ for(l in L_plurale){
                                 t = t, 
                                 r = r,
                                 neal8 = n8,
-                                split_merge = sam)
+                                split_merge = sam,
+                                n8_step_size = step)
   }
   else{
     results <- run_markov_chain(data = zoo, 
@@ -151,7 +154,8 @@ for(l in L_plurale){
                                 t = t, 
                                 r = r,
                                 neal8 = n8,
-                                split_merge = sam)
+                                split_merge = sam,
+                                n8_step_size = step)
   }
   #sink()
   #result_name = paste(result_name, "init_ass_", sep="")
@@ -175,6 +179,7 @@ for(l in L_plurale){
   print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 }
 
+
 ### Posterior similarity matrix
 results_dir <- file.path(getwd(), "../results")
 dir.exists(results_dir)
@@ -184,7 +189,7 @@ rdata_files <- list.files(results_dir, full.names = TRUE)
 dev.off()  # Close any open graphic devices
 graphics.off()  # Close all graphic devices
 
-for (file in rdata_files[11]) {
+for (file in rdata_files) {
   # Print file name 
   print(file)
   l <- 7
@@ -319,18 +324,46 @@ for (file in rdata_files[11]) {
   graphics.off()
 }
 
+rdata_files[3]
+load(rdata_files[3])
+C <- matrix(unlist(lapply(results$c_i, function(x) x + 1)), 
+            nrow = iterations, 
+            ncol = nrow(zoo), 
+            byrow = TRUE)
+
+required_packages <- c("spam", "fields", "viridisLite","RColorBrewer","pheatmap")
+for (pkg in required_packages) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg)
+    library(pkg, character.only = TRUE)
+  }
+}
+
+psm = comp.psm(C)
+## estimated clustering
+VI = minVI(psm)
+
+# More informative output
+cat("Cluster Sizes:\n")
+print(table(VI$cl))
+
+cat("\nAdjusted Rand Index:", arandi(VI$cl, groundTruth), "\n")
+arandi(VI$cl, groundTruth)
+
 myplotpsm_gt_lab(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
 myplotpsm_gt_sep_lab(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
 
 table(groundTruth)
 VI$cl
 
-groundTruth_indices <- which(groundTruth == 6)
+groundTruth_indices <- which(groundTruth == 3)
 VI_indices <- which(VI$cl == 7)
 
 # Compute the symmetric difference (in one but not both)
 symmetric_difference <- setdiff(union(groundTruth_indices, VI_indices), 
                                 intersect(groundTruth_indices, VI_indices))
+intersection_index <- intersect(groundTruth_indices, VI_indices)
+
 nam[symmetric_difference]
 nam[VI_indices]
 
@@ -354,6 +387,9 @@ sim_zoo = gibbs_mix_con(G=25000,
                         u=u,v=v,
                         Lambda = Lambda,
                         gam = gam)
+
+filename <- paste("../results/", 'sim_zoo', ".RData", sep = "")
+save(sim_zoo, file = filename)
 
 # posterior K
 post_k = table(sim_zoo$k[2:25002])/length(2:25002)
@@ -386,6 +422,8 @@ x11()
 par(mar=c(2.5,2.5,1,1),mgp=c(2,1,0))
 myplotpsm(psm,classes=VI$cl,ax=F,ay=F)
 myplotpsm_gt_sep(psm,groundTruth,classes=VI$cl,ax=F,ay=F)
+
+
 
 #=========================================================================================
 # Gibbs sampler HMM common sigma

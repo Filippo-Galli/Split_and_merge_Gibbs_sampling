@@ -121,7 +121,7 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
-                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool neal8=false, bool split_merge = true) {
+                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool neal8=false, bool split_merge = true, int n8_step_size = 1) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -191,7 +191,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
 
         // Sample new cluster assignments for each observation
-        if(neal8){
+        if(neal8 && iter%n8_step_size==0){
             for (int index_i = 0; index_i < const_data.n; index_i++) {
                 L = unique_classes(state.c_i).length();
                 IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
