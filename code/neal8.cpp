@@ -121,7 +121,7 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
-                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool neal8=false, bool split_merge = true, int n8_step_size = 1) {
+                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool neal8=false, bool split_merge = true, int n8_step_size = 1, int sam_step_size = 1) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -210,18 +210,11 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             print_internal_state(state);
         }
 
-        if(verbose == 3){
-            double loglikelihood_bfsam = compute_loglikelihood(state, const_data);
-
-            if(loglikelihood_bfsam<-1000 && iter >= burnin){
-                as<IntegerVector>(results["drop_iter_bfsam"])[iter - burnin] = 1;
-            }
-        }
 
         double loglikelihood_bfsam = compute_loglikelihood(state, const_data);
 
         // Split and merge step
-        if(split_merge){
+        if(split_merge && iter%sam_step_size==0){
             split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n, accepted_merge, accepted_split);
         }
 
