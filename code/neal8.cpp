@@ -28,8 +28,8 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
     const int m_temp = uni_clas.length() == k_minus ? m : m - 1;
 
     // Store current parameters for initialization
-    NumericVector temp_center = as<List>(state.center)[state.c_i[index_i]];
-    NumericVector temp_sigma = as<List>(state.sigma)[state.c_i[index_i]];
+    const NumericVector & temp_center = as<List>(state.center)[state.c_i[index_i]];
+    const NumericVector & temp_sigma = as<List>(state.sigma)[state.c_i[index_i]];
 
     // Create temporary state
     internal_state state_temp = {
@@ -60,15 +60,13 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
     
     // Calculate allocation probabilities
     NumericVector probs(state_temp.total_cls);
-    NumericVector sigma_k(constant_data.attrisize.length());
-    NumericVector center_k(constant_data.attrisize.length());
     
     // Probabilities for existing clusters
     for (int k = 0; k < k_minus; k++) {
         double log_likelihood = 0.0;
         
-        sigma_k = state_temp.sigma[k];
-        center_k = state_temp.center[k];
+        const NumericVector & sigma_k = state_temp.sigma[k];
+        const NumericVector & center_k = state_temp.center[k];
 
         // Calculate likelihood
         for (int j = 0; j < y_i.length(); j++) {
@@ -90,8 +88,8 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
     for(int k = k_minus; k < state_temp.total_cls; k++){
         double log_likelihood = 0.0;
         
-        sigma_k = state_temp.sigma[k];
-        center_k = state_temp.center[k];
+        const NumericVector & sigma_k = state_temp.sigma[k];
+        const NumericVector & center_k = state_temp.center[k];
 
         // Calculate likelihood
         for (int j = 0; j < y_i.length(); j++) {
@@ -102,11 +100,13 @@ void sample_allocation(const int index_i, const aux_data & constant_data,
         probs[k] = constant_data.gamma/m * std::exp(log_likelihood);    
     }
 
-    // Normalize probabilities
+    // DA SISTEMARE SICCOME POSSIAMO OTTIMIZZARLO PER EVITARE CONTINUE ALLOCAZIONI MOLTO ONEROSE
     NumericVector cls(state_temp.total_cls);
     for (int i = 0; i < state_temp.total_cls; ++i) {
         cls[i] = i;
     }
+
+    // Normalize probabilities
     probs = probs / max(probs);
     probs = probs / sum(probs);    
 
@@ -194,7 +194,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         if(neal8 && iter%n8_step_size==0){
             for (int index_i = 0; index_i < const_data.n; index_i++) {
                 L = unique_classes(state.c_i).length();
-                IntegerVector unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
+                const IntegerVector & unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
                 
                 // Sample new cluster assignment for observation i
                 sample_allocation(index_i, const_data, state, m, unique_classes_without_i);       

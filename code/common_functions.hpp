@@ -162,7 +162,7 @@ void print_progress_bar(int progress, int total, const std::chrono::steady_clock
         if (minutes > 0 || hours > 0) {
             time_str << minutes << "m ";
         }
-        time_str << secs << "s";
+        time_str << secs << "s"; // spazio per evitare che rimangano scritte vecchie
         return time_str.str();
     };
     
@@ -219,7 +219,7 @@ NumericVector sample_center_1_cluster(const IntegerVector & attrisize, const Lis
     NumericVector center(attrisize.length());
     for (int j = 0; j < attrisize.length(); j++) {
         if(probs.length() > 0){
-            IntegerVector attribute_vec = seq_len(attrisize[j]);
+            const IntegerVector & attribute_vec = seq_len(attrisize[j]);
             center[j] = sample(attribute_vec, 1, true, as<NumericVector>(probs[j]))[0];
         }
         
@@ -281,9 +281,8 @@ IntegerVector unique_classes(const IntegerVector & c_i) {
      * @param c_i Cluster assignments
      * @return IntegerVector containing unique classes
      */
-    IntegerVector unique_vec = unique(c_i);
-    std::sort(unique_vec.begin(), unique_vec.end());
-    return unique_vec;
+    
+    return as<IntegerVector>(unique(c_i).sort());
 }
 
 IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int index_to_del) {
@@ -300,6 +299,12 @@ IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int 
         }
     }
     return wrap(std::vector<double>(unique_classes.begin(), unique_classes.end()));
+
+    // Create a LogicalVector from the comparison
+    //const LogicalVector & mask = (seq_len(c_i.length()) - 1) != index_to_del;
+    //// Materialize the subset before passing to unique
+    //const IntegerVector & subset = c_i[mask];
+    //return unique(subset);
 }
 
 int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) {
@@ -310,13 +315,7 @@ int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) 
      * @param cls Cluster index
      * @return Number of members in the cluster
      */
-
-    if (exclude_index < 0 || exclude_index >= c_i.length()) {
-        Rcpp::warning("Exclude index %d is out of bounds for vector of length %d", 
-                     exclude_index, c_i.length());
-        return 0;
-    }
-    
+   
     int n_i_z = 0;
     for (int i = 0; i < c_i.length(); i++) {
         if (i != exclude_index && c_i[i] == cls) {
@@ -385,9 +384,9 @@ double compute_loglikelihood(internal_state & state, aux_data & const_data) {
 
     double loglikelihood = 0.0;
     for (int i = 0; i < const_data.n; i++) {
-        int cluster = state.c_i[i];
-        NumericVector center = as<NumericVector>(state.center[cluster]);
-        NumericVector sigma = as<NumericVector>(state.sigma[cluster]);
+        const int cluster = state.c_i[i];
+        const NumericVector & center = as<NumericVector>(state.center[cluster]);
+        const NumericVector & sigma = as<NumericVector>(state.sigma[cluster]);
         
         for (int j = 0; j < const_data.attrisize.length(); j++) {
             loglikelihood += dhamming(const_data.data(i, j), 
@@ -400,7 +399,7 @@ double compute_loglikelihood(internal_state & state, aux_data & const_data) {
     return loglikelihood;
 }
 
-NumericMatrix subset_data_for_cluster(const NumericMatrix & data, int cluster, const internal_state & state) {
+NumericMatrix subset_data_for_cluster(const NumericMatrix& data, int cluster, const internal_state& state) {
     /**
      * @brief Subset data for a specific cluster
      * @param data Input data matrix
@@ -408,16 +407,23 @@ NumericMatrix subset_data_for_cluster(const NumericMatrix & data, int cluster, c
      * @param state Internal state of the MCMC sampler
      * @return NumericMatrix containing the subset of data
      */
-
-    IntegerVector cluster_indices;
-    for (int i = 0; i < as<NumericVector>(state.c_i).length(); ++i) 
-        if ( as<NumericVector>(state.c_i)[i] == cluster) 
-            cluster_indices.push_back(i);
-        
     
-    NumericMatrix cluster_data(cluster_indices.length(), data.ncol());
-    for (int i = 0; i < cluster_indices.length(); ++i) {
-        cluster_data(i, _) = data(cluster_indices[i], _);
+    // Pre-count cluster size to avoid resizing
+    int cluster_size = 0;
+    const int n = state.c_i.length();
+    for (int i = 0; i < n; ++i) {
+        if (state.c_i[i] == cluster) {
+            ++cluster_size;
+        }
+    }
+    
+    NumericMatrix cluster_data(cluster_size, data.ncol());
+    int curr_idx = 0;
+    
+    for (int i = 0; i < n; ++i) {
+        if (state.c_i[i] == cluster) {
+            cluster_data(curr_idx++, _) = data(i, _);
+        }
     }
     
     return cluster_data;
@@ -432,27 +438,22 @@ void update_centers(internal_state & state, const aux_data & const_data, std::ve
      * @note This function is used to update cluster centers based on the current state
      *    and the input data
      */
-    IntegerVector clusters = unique_classes(state.c_i);
-    int num_cls = state.total_cls;
-    List prob_centers;
-
-    NumericVector attr_centers(const_data.attrisize.length());
-    List prob_centers_cluster;
-
+    const int & num_cls = state.total_cls;
 
     // Update all clusters if none specified
     if (cluster_indexes.size() == 0) {
         for (int i = 0; i < num_cls; i++) {
-            NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, i, state);
-            prob_centers = Center_prob(data_tmp, state.sigma[i], as<NumericVector>(const_data.attrisize));
+            const NumericMatrix & data_tmp = subset_data_for_cluster(const_data.data, i, state);
+            const List & prob_centers = Center_prob(data_tmp, state.sigma[i], as<NumericVector>(const_data.attrisize));
             state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
         }
-    } else {
+    } 
+    else {
         // Update only specified clusters
         for (int idx : cluster_indexes) {
             if (idx >= 0 && idx < num_cls) {
-                NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, idx, state);
-                prob_centers = Center_prob(data_tmp, state.sigma[idx], as<NumericVector>(const_data.attrisize));
+                const NumericMatrix & data_tmp = subset_data_for_cluster(const_data.data, idx, state);
+                const List & prob_centers = Center_prob(data_tmp, state.sigma[idx], as<NumericVector>(const_data.attrisize));
                 state.center[idx] = sample_center_1_cluster(const_data.attrisize, prob_centers);
             }
         }

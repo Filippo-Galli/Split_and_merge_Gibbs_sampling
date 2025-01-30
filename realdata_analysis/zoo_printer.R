@@ -44,10 +44,10 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 #Sys.setenv("PKG_CXXFLAGS" = paste0("-O3 ", "-I/home/filippo/R/x86_64-pc-linux-gnu-library/4.4/RcppGSL/include", 
 #                                   " -I/usr/local/include"))
 
-Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-library/4.4/RcppGSL/include"', " -I/usr/local/include"))
+#Sys.setenv("PKG_CXXFLAGS" = paste0('-I"C:/Users/clau7/AppData/Local/R/win-library/4.4/RcppGSL/include"', " -I/usr/local/include"))
 
 # Include full library paths and libraries
-Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
+#Sys.setenv("PKG_LIBS" = "-L/usr/local/lib -lgsl -lgslcblas -lm")
 
 v = c(rep(6,12),3,rep(6,3))
 w = c(rep(0.25,12),0.5,rep(0.25,3))
@@ -61,7 +61,7 @@ w = c(rep(0.25,12),0.5,rep(0.25,3))
 
 Rcpp::sourceCpp("../code/neal8.cpp")
 n8 <- TRUE
-sam <- TRUE
+sam <- FALSE
 n8_step <- 1
 sam_step <- 1
 
@@ -75,8 +75,8 @@ if(sam){
 }
 
 L_plurale <- c(101)
-iterations <- 100000
-burnin <- 50000
+iterations <- 15000
+burnin <- 20000
 m <- 3
 t <- 5
 r <- 5
