@@ -10,9 +10,15 @@ using namespace Rcpp;
 
 
 void sample_allocation(int idx, const aux_data & const_data, internal_state & state, const int m){
-    
-    DEBUG_PRINT(1, "\nDentro sample allocation");
-
+    /**
+     * @brief Sample new cluster assignment for observation i
+     * @param idx Index of the observation
+     * @param const_data Auxiliary data for the MCMC algorithm
+     * @param state Internal state of the MCMC sampler
+     * @param m Number of latent classes
+     * @note This function is used to sample new cluster assignments for each observation
+     *       based on the current state of the MCMC sampler
+     */
     // Get data point
     const NumericVector & y_i = const_data.data(idx, _);
     const IntegerVector & uni_clas = unique_classes(state.c_i);
@@ -21,8 +27,6 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     const int k_minus = unique_classes_without_i.length(); // numeri di cluster attivi escludendo l'osservazione corrente
 
     NumericVector probs(state.total_cls + m);
-
-    DEBUG_PRINT(1, "Passed data extraction");
 
     // Calculate allocation probabilities for existing clusters
     double log_likelihood = 0.0;
@@ -34,7 +38,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
 
         // Calculate likelihood
         for (int j = 0; j < y_i.length(); j++) {
-            log_likelihood += dhamming(y_i[j], center_k[j], sigma_k[j], const_data.attrisize[j], true);
+            log_likelihood += dhamming_pippo(y_i[j], center_k[j], sigma_k[j], const_data.attrisize[j]);
         }
 
         // Count instances of element in the cluster i excluding idx
@@ -46,8 +50,6 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
         // Set probability
         probs[i] = n_i_z != 0 ? log(n_i_z) + log_likelihood : -INFINITY ; //if n_i_z == 0 then probs[i] = 0
     }
-
-    DEBUG_PRINT(1, "Passed existing clusters probabilities");
 
     // Sample Latent Cluster
     std::vector<NumericVector> latent_centers;
@@ -67,8 +69,6 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
         latent_sigmas[0] = state.sigma[state.c_i[idx]];
     }
 
-    DEBUG_PRINT(1, "Passed auxiliary clusters initialization");
-
     // Calculate allocation probabilities for latent clusters
     const double log_factor = std::log(const_data.gamma/m);
     for(int i = 0; i < m; ++i){
@@ -79,14 +79,12 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
 
         // Calculate likelihood
         for (int j = 0; j < y_i.length(); j++) {
-            log_likelihood += dhamming(y_i[j], center_k[j], sigma_k[j], const_data.attrisize[j], true);
+            log_likelihood += dhamming_pippo(y_i[j], center_k[j], sigma_k[j], const_data.attrisize[j]);
         }
 
         // probability calculation
         probs[k + i] = log_factor + log_likelihood;
     }
-
-    DEBUG_PRINT(1, "Passed auxiliary clusters probabilities");
 
     // Normalize probabilities
     probs = exp((probs - max(probs)));
@@ -101,14 +99,10 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     int new_cls = sample(cls, 1, true, probs)[0];
     int old_cls = state.c_i[idx];
 
-    DEBUG_PRINT(1, "Passed sample allocation");
-
     // Update center and sigma
     // Caso 1: prendiamo una classe nota e non togliamo nessuna classe (non stiamo analizzando un'osservazione unica)
     if( new_cls < k && k_minus == k){
         // Update allocation
-        
-        DEBUG_PRINT(1, "Passed caso 1");
         state.c_i[idx] = new_cls;
         return;
     }
@@ -116,20 +110,14 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     // Caso 2: prendiamo una classe nota e togliamo una classe (stiamo analizzando un'osservazione unica)
     if( new_cls < k && k_minus < k){
         // Update allocation
-        
-        DEBUG_PRINT(1, "Passed caso 2");
         state.c_i[idx] = new_cls;
         // sostituisco la vecchia classe con l'ultima classe attiva
         state.center[old_cls] = std::move(state.center[k - 1]);
         state.sigma[old_cls] = std::move(state.sigma[k - 1]);
 
-        DEBUG_PRINT(2, "Passed caso 2 - sostituzione centro e sigma");
-
         // elimino l'ultima classe attiva
         state.center.erase(k - 1);
         state.sigma.erase(k - 1);
-
-        DEBUG_PRINT(2, "Passed caso 2 - tolto ultimo centro e sigma");
 
         // aggiorno le allocazioni 
         for(int i = 0; i < const_data.n; ++i){
@@ -137,8 +125,6 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
                 state.c_i[i] = old_cls;
             }
         }
-
-        DEBUG_PRINT(2, "Passed caso 2 - aggiornate le allocazioni");
 
         // Aggiorno il numero di classi attive
         state.total_cls = k - 1;
@@ -151,8 +137,6 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     // Caso 3: prendiamo una classe latente e non togliamo nessuna classe
     if( new_cls >= k && k_minus == k){
         // Update allocation
-        
-        DEBUG_PRINT(1, "Passed caso 3");
         state.c_i[idx] = k;
         state.center.push_back(latent_centers[new_cls - k]);
         state.sigma.push_back(latent_sigmas[new_cls - k]);
@@ -165,8 +149,6 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     // Caso 4: prendiamo una classe latente e togliamo una classe
     if (new_cls >= k && k_minus < k){
         // sostituisco la vecchia classe con la classe latente
-        
-        DEBUG_PRINT(1, "Passed caso 4");
         state.center[old_cls] = std::move(latent_centers[new_cls - k]);
         state.sigma[old_cls] = std::move(latent_sigmas[new_cls - k]);
         return;

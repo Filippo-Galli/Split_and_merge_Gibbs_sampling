@@ -150,7 +150,6 @@ for(l in L_plurale){
   print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 }
 
-
 ### Posterior similarity matrix
 results_dir <- file.path(getwd(), "../results")
 dir.exists(results_dir)
@@ -160,10 +159,12 @@ rdata_files <- list.files(results_dir, full.names = TRUE)
 dev.off()  # Close any open graphic devices
 graphics.off()  # Close all graphic devices
 
+idx <- 0
 for (file in rdata_files) {
+  idx <- idx + 1
   # Print file name 
   print(file)
-  l <- 7
+  l <- L_plurale[idx]
   load(file)
   
   # Extract file name without extension
@@ -214,21 +215,21 @@ for (file in rdata_files) {
   ggsave(filename = file.path(output_dir, paste0(file_base, "_trace_num_clusters.png")), plot = p2, bg = "white")
   
   ### Third plot - Plot the log-likelihood
-  log_likelihood_df <- data.frame(
-    Iteration = seq_along(results$loglikelihood),
-    LogLikelihood = results$loglikelihood
-  )
+  # log_likelihood_df <- data.frame(
+  #   Iteration = seq_along(results$loglikelihood),
+  #   LogLikelihood = results$loglikelihood
+  # )
   
-  p3 <- ggplot(log_likelihood_df, aes(x = Iteration, y = LogLikelihood)) +
-    geom_line() +
-    labs(
-      x = "Iteration",
-      y = "Log-Likelihood",
-      title = "Log-Likelihood Trace"
-    ) +
-    theme_minimal()
-  print(p3)
-  ggsave(filename = file.path(output_dir, paste0(file_base, "_log_likelihood.png")), plot = p3, bg = "white")
+  # p3 <- ggplot(log_likelihood_df, aes(x = Iteration, y = LogLikelihood)) +
+  #   geom_line() +
+  #   labs(
+  #     x = "Iteration",
+  #     y = "Log-Likelihood",
+  #     title = "Log-Likelihood Trace"
+  #   ) +
+  #   theme_minimal()
+  # print(p3)
+  # ggsave(filename = file.path(output_dir, paste0(file_base, "_log_likelihood.png")), plot = p3, bg = "white")
   
   ### inter plot - Plot the log-likelihood before S&M
   log_likelihood_df_bis <- data.frame(
@@ -276,20 +277,20 @@ for (file in rdata_files) {
       width = 800, height = 800)
   myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
   dev.off()  # Close the device to save the first plot
-  dev.off()
+  #dev.off()
   
-  # Save the second plot
-  png(filename = file.path(output_dir, paste0(file_base, "m_gt.png")), 
-      width = 800, height = 800)
-  myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
-  dev.off()  # Close the device to save the second plot
+  # # Save the second plot
+  # png(filename = file.path(output_dir, paste0(file_base, "m_gt.png")), 
+  #     width = 800, height = 800)
+  # myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
+  # dev.off()  # Close the device to save the second plot
   
-  png(filename = file.path(output_dir, paste0(file_base, "m_s.png")), 
-      width = 800, height = 800)
-  myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
-  dev.off()
+  # png(filename = file.path(output_dir, paste0(file_base, "m_s.png")), 
+  #     width = 800, height = 800)
+  # myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
+  # dev.off()
   
-  graphics.off()
+  # graphics.off()
   }
 }
 

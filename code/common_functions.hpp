@@ -374,6 +374,20 @@ void clean_var(internal_state & updated_state,
     }
 }
 
+double dhamming_pippo(int x, int c, double s, int attrisize) {
+    // Convert boolean to integer safely
+    int diff = (x != c);
+    
+    // Precompute common terms
+    double exp_term = exp(1.0/s);
+    double attr_ratio = (attrisize - 1.0) / exp_term;
+    
+    double numerator = -diff / s;
+    double denominator = log(1.0 + attr_ratio);
+    return numerator - denominator;
+    
+}
+
 double compute_loglikelihood(internal_state & state, aux_data & const_data) {
     /**
      * @brief Compute log-likelihood of the current state
@@ -389,11 +403,10 @@ double compute_loglikelihood(internal_state & state, aux_data & const_data) {
         const NumericVector & sigma = as<NumericVector>(state.sigma[cluster]);
         
         for (int j = 0; j < const_data.attrisize.length(); j++) {
-            loglikelihood += dhamming(const_data.data(i, j), 
+            loglikelihood += dhamming_pippo(const_data.data(i, j), 
                                     center[j], 
                                     sigma[j], 
-                                    const_data.attrisize[j], 
-                                    true);
+                                    const_data.attrisize[j]);
         }
     }
     return loglikelihood;
@@ -429,36 +442,87 @@ NumericMatrix subset_data_for_cluster(const NumericMatrix& data, int cluster, co
     return cluster_data;
 }
 
-void update_centers(internal_state & state, const aux_data & const_data, std::vector<int> cluster_indexes = {}) {
-    /**
-     * @brief Update cluster centers
-     * @param state Internal state of the MCMC sampler
-     * @param const_data Auxiliary data for the MCMC algorithm
-     * @param cluster_indexes Vector of cluster indexes to update (default: empty)
-     * @note This function is used to update cluster centers based on the current state
-     *    and the input data
-     */
-    const int & num_cls = state.total_cls;
+NumericVector compute_frequencies(const NumericVector& data_col, const int m_j) {
+    NumericVector freqs(m_j);
+    
+    // For each possible value (1 to m_j), count occurrences
+    for(int i = 0; i < m_j; i++) {
+        // Use Sugar's comparison and sum for counting
+        freqs[i] = sum(data_col == (i + 1));
+    }
+    
+    return freqs;
+}
 
-    // Update all clusters if none specified
-    if (cluster_indexes.size() == 0) {
-        for (int i = 0; i < num_cls; i++) {
-            const NumericMatrix & data_tmp = subset_data_for_cluster(const_data.data, i, state);
-            const List & prob_centers = Center_prob(data_tmp, state.sigma[i], as<NumericVector>(const_data.attrisize));
-            state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
-        }
-    } 
-    else {
-        // Update only specified clusters
-        for (int idx : cluster_indexes) {
-            if (idx >= 0 && idx < num_cls) {
-                const NumericMatrix & data_tmp = subset_data_for_cluster(const_data.data, idx, state);
-                const List & prob_centers = Center_prob(data_tmp, state.sigma[idx], as<NumericVector>(const_data.attrisize));
-                state.center[idx] = sample_center_1_cluster(const_data.attrisize, prob_centers);
+List Center_prob_pippo(const NumericMatrix& data, const NumericVector& sigma, const IntegerVector & attrisize) {
+    const int p = data.ncol();
+    const int n = data.nrow();
+    List prob(p);
+    
+    for(int i = 0; i < p; i++) {
+        const int m_j = attrisize[i];
+        
+        // Extract column as vector for easier manipulation
+        NumericVector data_col = data(_, i);
+        
+        // Get frequencies using Sugar operations
+        NumericVector freq = compute_frequencies(data_col, m_j);
+        
+        // Create and transform probabilities using vectorized operations
+        NumericVector prob_tmp = -(n - freq) / sigma[i];
+        
+        // Numerical stability: subtract max and exp
+        const double max_val = max(prob_tmp);
+        prob_tmp = exp(prob_tmp - max_val);
+        
+        // Normalize using Sugar's sum
+        prob_tmp = prob_tmp / sum(prob_tmp);
+        
+        prob[i] = prob_tmp;
+    }
+    
+    return prob;
+}
+
+
+// Optimized version of update_centers
+void update_centers(internal_state& state, const aux_data& const_data, 
+                   std::vector<int> cluster_indexes = {}) {
+    const int& num_cls = state.total_cls;
+    const int n_rows = const_data.data.nrow();
+    
+    // Use Sugar for cluster mask
+    LogicalVector cluster_mask = LogicalVector(num_cls, cluster_indexes.empty());
+    if (!cluster_indexes.empty()) {
+        // Convert indexes to 0-based for internal use
+        IntegerVector idx = wrap(cluster_indexes);
+        cluster_mask[idx] = true;
+    }
+    
+    for (int i = 0; i < num_cls; i++) {
+        if (!cluster_mask[i]) continue;
+        
+        // Use Sugar to create cluster indicator
+        LogicalVector cluster_ind = NumericVector(state.c_i) == i;
+        int cluster_size = sum(cluster_ind);
+        
+        if (cluster_size == 0) continue;
+        
+        // Create data subset using Sugar operations
+        NumericMatrix data_subset(cluster_size, const_data.data.ncol());
+        int idx = 0;
+        for (int j = 0; j < n_rows; j++) {
+            if (cluster_ind[j]) {
+                data_subset(idx++, _) = const_data.data(j, _);
             }
         }
+        
+        // Update center using optimized functions
+        List prob_centers = Center_prob_pippo(data_subset, state.sigma[i], const_data.attrisize);
+        state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
     }
 }
+
 
 void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, 
                  const aux_data & const_data, std::vector<int> clusters_to_update = {}) {
@@ -509,18 +573,18 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
         }
         
         int nm = cluster_indices.length();
-        NumericVector centers_cluster = as<NumericVector>(centers[c]);
+        const NumericVector & centers_cluster = as<NumericVector>(centers[c]);
         
         // Update parameters
         for (int j = 0; j < const_data.attrisize.length(); ++j) {
-            NumericVector col = cluster_data(_, j);
+            const NumericVector & col = cluster_data(_, j);
             double sumdelta = sum(col == centers_cluster[j]);
             new_w[j] = const_data.w[j] + nm - sumdelta;
             new_v[j] = const_data.v[j] + sumdelta;   
         }
 
         // Sample new sigmas
-        sigma[c] = clone(sample_sigma_1_cluster(const_data.attrisize, new_v, new_w));
+        sigma[c] = std::move(sample_sigma_1_cluster(const_data.attrisize, new_v, new_w));
     }
 }
 
