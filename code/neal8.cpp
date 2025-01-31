@@ -8,114 +8,169 @@
 
 using namespace Rcpp;
 
-void sample_allocation(const int index_i, const aux_data & constant_data, 
-                     internal_state & state, const int m, 
-                     const IntegerVector & unique_classes_without_i) {
-    /**
-     * @brief Sample new cluster assignment for observation i
-     * @param index_i Index of observation i
-     * @param constant_data Auxiliary data for the MCMC algorithm
-     * @param state Internal state of the MCMC algorithm
-     * @param m Number of latent classes
-     * @param unique_classes_without_i Vector of unique classes excluding the current observation
-     */
+
+void sample_allocation(int idx, const aux_data & const_data, internal_state & state, const int m){
     
+    DEBUG_PRINT(1, "\nDentro sample allocation");
+
     // Get data point
-    const NumericVector & y_i = constant_data.data(index_i, _);
+    const NumericVector & y_i = const_data.data(idx, _);
+    const IntegerVector & uni_clas = unique_classes(state.c_i);
+    const IntegerVector & unique_classes_without_i = unique_classes_without_index(state.c_i, idx);
+    const int k = uni_clas.length(); // numeri di cluster attivi
+    const int k_minus = unique_classes_without_i.length(); // numeri di cluster attivi escludendo l'osservazione corrente
 
-    const IntegerVector uni_clas = unique_classes(state.c_i);
-    const int k_minus = unique_classes_without_i.length();
-    const int m_temp = uni_clas.length() == k_minus ? m : m - 1;
+    NumericVector probs(state.total_cls + m);
 
-    // Store current parameters for initialization
-    const NumericVector & temp_center = as<List>(state.center)[state.c_i[index_i]];
-    const NumericVector & temp_sigma = as<List>(state.sigma)[state.c_i[index_i]];
+    DEBUG_PRINT(1, "Passed data extraction");
 
-    // Create temporary state
-    internal_state state_temp = {
-        IntegerVector(state.c_i.length()), 
-        List(state.center.length()), 
-        List(state.sigma.length()), 
-        0
-    };
-    
-    // Clean and prepare temporary state
-    clean_var(state_temp, state, unique_classes_without_i, constant_data.attrisize);
-
-    // Handle case when point is alone in its cluster
-    if(uni_clas.length() != k_minus){
-        state_temp.center.push_back(temp_center);
-        state_temp.sigma.push_back(temp_sigma);
-    }
-
-    // Add auxiliary parameters
-    for(int i = 0; i < m_temp; i++){
-        state_temp.center.push_back(sample_center_1_cluster(constant_data.attrisize));
-        state_temp.sigma.push_back(sample_sigma_1_cluster(constant_data.attrisize, 
-                                                        constant_data.v, 
-                                                        constant_data.w));
-    } 
-    
-    state_temp.total_cls = state_temp.center.length();
-    
-    // Calculate allocation probabilities
-    NumericVector probs(state_temp.total_cls);
-    
-    // Probabilities for existing clusters
-    for (int k = 0; k < k_minus; k++) {
-        double log_likelihood = 0.0;
+    // Calculate allocation probabilities for existing clusters
+    double log_likelihood = 0.0;
+    for(int i = 0; i < k; ++i){
+        log_likelihood = 0.0;
         
-        const NumericVector & sigma_k = state_temp.sigma[k];
-        const NumericVector & center_k = state_temp.center[k];
+        const NumericVector & sigma_k = state.sigma[i];
+        const NumericVector & center_k = state.center[i];
 
         // Calculate likelihood
         for (int j = 0; j < y_i.length(); j++) {
-            log_likelihood += dhamming(y_i[j], center_k[j], sigma_k[j], 
-                                    constant_data.attrisize[j], true);
+            log_likelihood += dhamming(y_i[j], center_k[j], sigma_k[j], const_data.attrisize[j], true);
         }
 
-        // Count instances excluding current point
-        int n_i_z = (k < unique_classes_without_i.length()) ? 
-            count_cluster_members(state_temp.c_i, index_i, unique_classes_without_i[k]) : 0;
+        // Count instances of element in the cluster i excluding idx
+        //int n_i_z = (i < unique_classes_without_i.length()) ? count_cluster_members(state_temp.c_i, idx, unique_classes_without_i[i]) : 0;
+        //int n_i_z = count_cluster_members(state.c_i, idx, unique_classes_without_i[i]);
+        int n_i_z = sum(state.c_i == i) - (state.c_i[idx] == i);
+        //Rcpp::Rcout << "n_i_z: " << n_i_z << std::endl;
 
         // Set probability
-        if(k < probs.length()){
-            probs[k] = (n_i_z == 0) ? 0.0 : n_i_z * std::exp(log_likelihood);
-        }
+        probs[i] = n_i_z != 0 ? log(n_i_z) + log_likelihood : -INFINITY ; //if n_i_z == 0 then probs[i] = 0
     }
 
-    // Probabilities for auxiliary parameters
-    for(int k = k_minus; k < state_temp.total_cls; k++){
-        double log_likelihood = 0.0;
+    DEBUG_PRINT(1, "Passed existing clusters probabilities");
+
+    // Sample Latent Cluster
+    std::vector<NumericVector> latent_centers;
+    latent_centers.reserve(m);
+    std::vector<NumericVector> latent_sigmas;
+    latent_sigmas.reserve(m);
+
+    // initialize latent clusters
+    for(int i = 0; i < m; ++i){
+        latent_centers.push_back(sample_center_1_cluster(const_data.attrisize));
+        latent_sigmas.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
+    }
+
+    // Se l'osservazione è unica, il suo cluster diventa la prima classe latente
+    if(k_minus < k){  
+        latent_centers[0] = state.center[state.c_i[idx]];
+        latent_sigmas[0] = state.sigma[state.c_i[idx]];
+    }
+
+    DEBUG_PRINT(1, "Passed auxiliary clusters initialization");
+
+    // Calculate allocation probabilities for latent clusters
+    const double log_factor = std::log(const_data.gamma/m);
+    for(int i = 0; i < m; ++i){
+        log_likelihood = 0.0;
         
-        const NumericVector & sigma_k = state_temp.sigma[k];
-        const NumericVector & center_k = state_temp.center[k];
+        const NumericVector & sigma_k = latent_sigmas[i];
+        const NumericVector & center_k = latent_centers[i];
 
         // Calculate likelihood
         for (int j = 0; j < y_i.length(); j++) {
-            log_likelihood += dhamming(y_i[j], center_k[j], sigma_k[j], 
-                                    constant_data.attrisize[j], true);
+            log_likelihood += dhamming(y_i[j], center_k[j], sigma_k[j], const_data.attrisize[j], true);
         }
 
-        probs[k] = constant_data.gamma/m * std::exp(log_likelihood);    
+        // probability calculation
+        probs[k + i] = log_factor + log_likelihood;
     }
 
-    // DA SISTEMARE SICCOME POSSIAMO OTTIMIZZARLO PER EVITARE CONTINUE ALLOCAZIONI MOLTO ONEROSE
-    NumericVector cls(state_temp.total_cls);
-    for (int i = 0; i < state_temp.total_cls; ++i) {
-        cls[i] = i;
-    }
+    DEBUG_PRINT(1, "Passed auxiliary clusters probabilities");
 
     // Normalize probabilities
-    probs = probs / max(probs);
-    probs = probs / sum(probs);    
+    probs = exp((probs - max(probs)));
+    probs = probs / sum(probs);
+
+    //Rcpp::Rcout << "Probs:" << probs << std::endl;
 
     // Sample new allocation
-    state_temp.c_i[index_i] = sample(cls, 1, true, probs)[0];
+    NumericVector cls(k + m);
+    std::iota(cls.begin(), cls.end(), 0); // fill cls with 0, 1, 2, ..., k + m - 1
 
-    // Clean and update state
-    clean_var(state, state_temp, unique_classes(state_temp.c_i), 
-              constant_data.attrisize);
+    int new_cls = sample(cls, 1, true, probs)[0];
+    int old_cls = state.c_i[idx];
+
+    DEBUG_PRINT(1, "Passed sample allocation");
+
+    // Update center and sigma
+    // Caso 1: prendiamo una classe nota e non togliamo nessuna classe (non stiamo analizzando un'osservazione unica)
+    if( new_cls < k && k_minus == k){
+        // Update allocation
+        
+        DEBUG_PRINT(1, "Passed caso 1");
+        state.c_i[idx] = new_cls;
+        return;
+    }
+
+    // Caso 2: prendiamo una classe nota e togliamo una classe (stiamo analizzando un'osservazione unica)
+    if( new_cls < k && k_minus < k){
+        // Update allocation
+        
+        DEBUG_PRINT(1, "Passed caso 2");
+        state.c_i[idx] = new_cls;
+        // sostituisco la vecchia classe con l'ultima classe attiva
+        state.center[old_cls] = std::move(state.center[k - 1]);
+        state.sigma[old_cls] = std::move(state.sigma[k - 1]);
+
+        DEBUG_PRINT(2, "Passed caso 2 - sostituzione centro e sigma");
+
+        // elimino l'ultima classe attiva
+        state.center.erase(k - 1);
+        state.sigma.erase(k - 1);
+
+        DEBUG_PRINT(2, "Passed caso 2 - tolto ultimo centro e sigma");
+
+        // aggiorno le allocazioni 
+        for(int i = 0; i < const_data.n; ++i){
+            if(state.c_i[i] == (k - 1)){
+                state.c_i[i] = old_cls;
+            }
+        }
+
+        DEBUG_PRINT(2, "Passed caso 2 - aggiornate le allocazioni");
+
+        // Aggiorno il numero di classi attive
+        state.total_cls = k - 1;
+
+        // print state
+        print_internal_state(state);
+        return;
+    }
+
+    // Caso 3: prendiamo una classe latente e non togliamo nessuna classe
+    if( new_cls >= k && k_minus == k){
+        // Update allocation
+        
+        DEBUG_PRINT(1, "Passed caso 3");
+        state.c_i[idx] = k;
+        state.center.push_back(latent_centers[new_cls - k]);
+        state.sigma.push_back(latent_sigmas[new_cls - k]);
+
+        // Aggiorno il numero di classi attive
+        state.total_cls = k + 1;
+        return;
+    }
+
+    // Caso 4: prendiamo una classe latente e togliamo una classe
+    if (new_cls >= k && k_minus < k){
+        // sostituisco la vecchia classe con la classe latente
+        
+        DEBUG_PRINT(1, "Passed caso 4");
+        state.center[old_cls] = std::move(latent_centers[new_cls - k]);
+        state.sigma[old_cls] = std::move(latent_sigmas[new_cls - k]);
+        return;
+    }
 }
 
 // [[Rcpp::export]]
@@ -194,10 +249,9 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         if(neal8 && iter%n8_step_size==0){
             for (int index_i = 0; index_i < const_data.n; index_i++) {
                 L = unique_classes(state.c_i).length();
-                const IntegerVector & unique_classes_without_i = unique_classes_without_index(state.c_i, index_i);
-                
+
                 // Sample new cluster assignment for observation i
-                sample_allocation(index_i, const_data, state, m, unique_classes_without_i);       
+                sample_allocation(index_i, const_data, state, m);       
             } 
             
             // Update centers and sigmas
