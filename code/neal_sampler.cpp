@@ -484,7 +484,7 @@ void update_centers(internal_state & state, const aux_data & const_data, std::ve
     List prob_centers_cluster;
     
     //List attri_List = Attributes_List(const_data.data, const_data.data.ncol());
-    List attri_List = Attributes_List_manual(const_data.data, const_data.data.ncol());
+    List attri_List = Attributes_List(const_data.data, const_data.data.ncol());
 
     // If no specific clusters specified, update all clusters
     if (cluster_indexes.size() == 0) {
