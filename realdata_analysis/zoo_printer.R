@@ -37,9 +37,9 @@ if(sam){
   result_name_base = paste(result_name_base, "SplitMerge", sep = "_")
 }
 
-L_plurale <- c(101)
-iterations <- 5000
-burnin <- 10000
+L_plurale <- c(101, 1, 0, 20, 5) # 5 siccome è log(n)
+iterations <- 10000
+burnin <- 15000
 m <- 3
 t <- 5
 r <- 5

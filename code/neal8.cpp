@@ -8,6 +8,152 @@
 
 using namespace Rcpp;
 
+void sample_allocation_vec(int idx, const aux_data & const_data, internal_state & state, const int m) {
+
+    const NumericVector & y_i = const_data.data(idx, _);
+    const IntegerVector & uni_clas = unique_classes(state.c_i);
+    const IntegerVector & unique_classes_without_i = unique_classes_without_index(state.c_i, idx);
+    const int k = uni_clas.length();
+    const int k_minus = unique_classes_without_i.length();
+
+    // Create vector to store probabilities
+    NumericVector probs(k + m);
+    
+    // Count instances in each cluster (manually, since we can't use tabulate)
+    NumericVector cluster_counts(k);
+    for(int i = 0; i < state.c_i.length(); i++) {
+        if(state.c_i[i] < k) {
+            cluster_counts[state.c_i[i]]++;
+        }
+    }
+    
+    // Adjust count for current observation
+    if(state.c_i[idx] < k) {
+        cluster_counts[state.c_i[idx]]--;
+    }
+    
+    // Calculate log counts where count > 0
+    NumericVector log_counts(k);
+    for(int i = 0; i < k; i++) {
+        log_counts[i] = cluster_counts[i] > 0 ? std::log(cluster_counts[i]) : R_NegInf;
+    }
+    
+    // Calculate log-likelihoods for existing clusters
+    NumericVector cluster_log_likelihoods(k);
+    for(int cluster = 0; cluster < k; ++cluster) {
+        const NumericVector & sigma_k = state.sigma[cluster];
+        const NumericVector & center_k = state.center[cluster];
+        
+        double log_likelihood = 0.0;
+        for(int j = 0; j < y_i.length(); j++) {
+            log_likelihood += dhamming_pippo(y_i[j], 
+                                          center_k[j], 
+                                          sigma_k[j], 
+                                          const_data.attrisize[j]);
+        }
+        cluster_log_likelihoods[cluster] = log_likelihood;
+    }
+    
+    // Combine log counts and log-likelihoods for existing clusters
+    for(int i = 0; i < k; i++) {
+        probs[i] = log_counts[i] + cluster_log_likelihoods[i];
+    }
+    
+    // Sample and prepare latent clusters
+    std::vector<NumericVector> latent_centers;
+    std::vector<NumericVector> latent_sigmas;
+    latent_centers.reserve(m);
+    latent_sigmas.reserve(m);
+    
+    // Initialize latent clusters
+    for(int i = 0; i < m; ++i) {
+        latent_centers.push_back(sample_center_1_cluster(const_data.attrisize));
+        latent_sigmas.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
+    }
+    
+    // Handle unique observation case
+    if(k_minus < k) {
+        latent_centers[0] = state.center[state.c_i[idx]];
+        latent_sigmas[0] = state.sigma[state.c_i[idx]];
+    }
+    
+    // Calculate probabilities for latent clusters
+    const double log_factor = std::log(const_data.gamma/m);
+    
+    for(int latent = 0; latent < m; ++latent) {
+        const NumericVector & sigma_k = latent_sigmas[latent];
+        const NumericVector & center_k = latent_centers[latent];
+        
+        double log_likelihood = 0.0;
+        for(int j = 0; j < y_i.length(); j++) {
+            log_likelihood += dhamming_pippo(y_i[j],
+                                          center_k[j],
+                                          sigma_k[j],
+                                          const_data.attrisize[j]);
+        }
+        
+        probs[k + latent] = log_factor + log_likelihood;
+    }
+    
+    // Normalize probabilities using log-sum-exp trick
+    double max_prob = max(probs);
+    for(int j = 0; j < probs.length(); j++) {
+        probs[j] = std::exp(probs[j] - max_prob);
+    }
+    
+    double sum_exp = sum(probs);
+    for(int j = 0; j < probs.length(); j++) {
+        probs[j] /= sum_exp;
+    }
+    
+    // Create sequence for sampling
+    IntegerVector cls(k + m, 0);
+    std::iota(cls.begin(), cls.end(), 0);
+    
+    // Sample new allocation
+    int new_cls = sample(cls, 1, true, probs)[0];
+    int old_cls = state.c_i[idx];
+
+    // Update state based on cases
+    if(new_cls < k && k_minus == k) {
+        state.c_i[idx] = new_cls;
+        return;
+    }
+    
+    if(new_cls < k && k_minus < k) {
+        state.c_i[idx] = new_cls;
+        
+        // Move last center and sigma to old_cls position
+        state.center[old_cls] = state.center[k - 1];
+        state.sigma[old_cls] = state.sigma[k - 1];
+        
+        for(int i = 0; i < const_data.n; ++i) {
+            if(state.c_i[i] == (k - 1)) {
+                state.c_i[i] = old_cls;
+            }
+        }
+        
+        // Remove last elements using proper List methods
+        state.center.erase(k - 1);
+        state.sigma.erase(k - 1);
+        state.total_cls = k - 1;
+        return;
+    }
+    
+    if(new_cls >= k && k_minus == k) {
+        state.c_i[idx] = k;
+        state.center.push_back(latent_centers[new_cls - k]);
+        state.sigma.push_back(latent_sigmas[new_cls - k]);
+        state.total_cls = k + 1;
+        return;
+    }
+    
+    if(new_cls >= k && k_minus < k) {
+        state.center[old_cls] = std::move(latent_centers[new_cls - k]);
+        state.sigma[old_cls] = std::move(latent_sigmas[new_cls - k]);
+        return;
+    }
+}
 
 void sample_allocation(int idx, const aux_data & const_data, internal_state & state, const int m){
     /**
@@ -42,10 +188,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
         }
 
         // Count instances of element in the cluster i excluding idx
-        //int n_i_z = (i < unique_classes_without_i.length()) ? count_cluster_members(state_temp.c_i, idx, unique_classes_without_i[i]) : 0;
-        //int n_i_z = count_cluster_members(state.c_i, idx, unique_classes_without_i[i]);
         int n_i_z = sum(state.c_i == i) - (state.c_i[idx] == i);
-        //Rcpp::Rcout << "n_i_z: " << n_i_z << std::endl;
 
         // Set probability
         probs[i] = n_i_z != 0 ? log(n_i_z) + log_likelihood : -INFINITY ; //if n_i_z == 0 then probs[i] = 0
@@ -89,7 +232,6 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     // Normalize probabilities
     probs = exp((probs - max(probs)));
     probs = probs / sum(probs);
-
     //Rcpp::Rcout << "Probs:" << probs << std::endl;
 
     // Sample new allocation
@@ -228,10 +370,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
 
         // Sample new cluster assignments for each observation
-        if(neal8 && iter%n8_step_size==0){
+        if(neal8){
             for (int index_i = 0; index_i < const_data.n; index_i++) {
-                L = unique_classes(state.c_i).length();
-
                 // Sample new cluster assignment for observation i
                 sample_allocation(index_i, const_data, state, m);       
             } 
