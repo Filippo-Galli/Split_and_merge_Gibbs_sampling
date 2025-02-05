@@ -3,6 +3,7 @@
 #include <iostream>
 #include <gsl/gsl_sf_hyperg.h>
 #include <cmath>
+#include "hyperg.hpp"
 
 using namespace Rcpp;
 
@@ -31,8 +32,7 @@ double norm_const(const double d ,const double c, const double m){
 } 
 
 // [[Rcpp::export]]
-double
-  hyperg(double a, double b, double c, double x)
+double hyperg(double a, double b, double c, double x)
   {
     gsl_sf_result result;
     gsl_set_error_handler_off();
@@ -51,7 +51,7 @@ double
 // m also is a parameter but it is "fixed" by the data (m  greather than 2)
 // [[Rcpp::export]]
 Rcpp::NumericVector dhyper_raf(const Rcpp::NumericVector u,const double d ,const double c,
-                               const double m, const bool log_scale=false){
+                               const double m, const bool log_scale){
   
   int n= u.length();
   Rcpp::NumericVector out(n);
@@ -73,8 +73,7 @@ Rcpp::NumericVector dhyper_raf(const Rcpp::NumericVector u,const double d ,const
 
 ///Newtown method
 // [[Rcpp::export]]
-double
-  newton_hyper(const double d,const double c,const double m,const double Omega,const  double u0=0.5){
+double newton_hyper(const double d,const double c,const double m,const double Omega,const  double u0){
     
     double hu=1;
     double u_current=u0;
@@ -112,8 +111,7 @@ double lF_conK(const double u, const double d,const double c,const double m,cons
 
 ///Newtown method
 // [[Rcpp::export]]
-double
-  bisec_hyper(const double d,const double c,const double m,const double Omega){
+double bisec_hyper(const double d,const double c,const double m,const double Omega){
     
     
     double centro=0.5;
@@ -193,7 +191,7 @@ Rcpp::NumericVector rhyper_sig(const int n,const double d ,const double c, const
 // m also is a parameter but it is "fixed" by the data (m  greather than 2)
 // [[Rcpp::export]]
 Rcpp::NumericVector dhyper_sig_raf(const Rcpp::NumericVector x,const double d ,const double c,
-                                   const double m, const bool log_scale=false){
+                                   const double m, const bool log_scale){
   
   int n= x.length();
   Rcpp::NumericVector out(n);

@@ -5,7 +5,7 @@ library(ggplot2)
 library(tidyverse)
 library(pheatmap)
 rm(list=ls())
-source("../code/complement_functions.R")
+source("../code/old_code/complement_functions.R")
 
 zoo=read.table("../data/zoo.data", h=F, sep=",")
 nam = zoo$V1
@@ -24,9 +24,7 @@ v = c(rep(6,12), 3, rep(6,3))
 w = c(rep(0.25,12), 0.5, rep(0.25,3))
 
 n8 <- TRUE
-sam <- FALSE
-n8_step <- 1
-sam_step <- 1
+sam <- TRUE
 
 result_name_base = "Test"
 if(n8){
@@ -37,117 +35,132 @@ if(sam){
   result_name_base = paste(result_name_base, "SplitMerge", sep = "_")
 }
 
-L_plurale <- c(101, 1, 0, 20, 5) # 5 siccome è log(n)
+#L_plurale <- c(101, 1, 0, 20, 5) # 5 siccome è log(n)
+L_plurale <- c(1)
 iterations <- 10000
-burnin <- 15000
+burnin <- 5000
 m <- 3
-t <- 5
-r <- 5
+#sam_params <- list(c(1, 10), c(10, 1), c(10, 10), c(1, 1))
+sam_params <- list(c(10, 10))
+#steps <- list(c(1, 1), c(1, 10), c(10, 1), c(20, 1))
+steps <- list(c(1, 1))
 
 Rcpp::sourceCpp("../code/neal8.cpp")
 
-for(l in L_plurale){
-  temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
-  #result_name = "result_"
-  result_name <- result_name_base
-  # Clean output file
-  if(file.exists("output.txt")) {
-    # Remove the file
-    file.remove("output.txt")
+for(step in steps){
+  n8_step <- step[1]
+  sam_step <- step[2]
+
+  for(param in sam_params){
+    r <- param[1]
+    t <- param[2]
+
+    for(l in L_plurale){
+      print(paste("Running for L = ", l, " r = ", r, " t = ", t, " n8_step = ", n8_step, " s&m_step = ", sam_step, sep = ""))
+
+      temp_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
+      #result_name = "result_"
+      result_name <- result_name_base
+      # Clean output file
+      if(file.exists("output.txt")) {
+        # Remove the file
+        file.remove("output.txt")
+      }
+      #sink("output.txt")
+      if(l == 1){
+        results <- run_markov_chain(data = zoo, 
+                                    attrisize = mm, 
+                                    gamma = 0.68, 
+                                    v = v, 
+                                    w = w, 
+                                    verbose = 0, 
+                                    m = m, 
+                                    iterations = iterations,
+                                    c_i = rep(0,nrow(zoo)),
+                                    burnin = burnin,
+                                    t = t, 
+                                    r = r,
+                                    neal8 = n8,
+                                    split_merge = sam,
+                                    n8_step_size = n8_step,
+                                    sam_step_size = sam_step)
+      }
+      else if(l == 101){
+        results <- run_markov_chain(data = zoo, 
+                                    attrisize = mm, 
+                                    gamma = 0.68, 
+                                    v = v, 
+                                    w = w, 
+                                    verbose = 0, 
+                                    m = m, 
+                                    iterations = iterations,
+                                    c_i = seq(1,nrow(zoo)),
+                                    burnin = burnin,
+                                    t = t, 
+                                    r = r,
+                                    neal8 = n8,
+                                    split_merge = sam,
+                                    n8_step_size = n8_step,
+                                    sam_step_size = sam_step)
+      }
+      else if(l == 0){
+        results <- run_markov_chain(data = zoo, 
+                                    attrisize = mm, 
+                                    gamma = 0.68, 
+                                    v = v, 
+                                    w = w, 
+                                    verbose = 0, 
+                                    m = m, 
+                                    iterations = iterations,
+                                    c_i = unlist(groundTruth), 
+                                    burnin = burnin,
+                                    t = t, 
+                                    r = r,
+                                    neal8 = n8,
+                                    split_merge = sam,
+                                    n8_step_size = n8_step,
+                                    sam_step_size = sam_step)
+      }
+      else{
+        results <- run_markov_chain(data = zoo, 
+                                    attrisize = mm, 
+                                    gamma = 0.68, 
+                                    v = v, 
+                                    w = w, 
+                                    verbose = 0, 
+                                    m = m, 
+                                    iterations = iterations,
+                                    L = l,
+                                    burnin = burnin,
+                                    t = t, 
+                                    r = r,
+                                    neal8 = n8,
+                                    split_merge = sam,
+                                    n8_step_size = n8_step,
+                                    sam_step_size = sam_step)
+      }
+      #sink(NULL)
+      #result_name = paste(result_name, "init_ass_", sep="")
+      result_name = paste(result_name, "L", l, sep = "_")
+      if(n8){
+        result_name = paste(result_name, "M", m, sep = "_")
+      }
+      if(sam){
+        result_name = paste(result_name, "t", t, sep = "_")
+        result_name = paste(result_name, "r", r, sep = "_")
+      }
+      
+      result_name = paste(result_name, "BI", burnin, sep = "_")
+      result_name = paste(result_name, "IT", iterations, sep = "_")
+      result_name = paste(result_name, "time", results$time, sep = "_")
+      
+      # Save results
+      #filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time, "_S&M",".RData", sep = "")
+      filename <- paste("../results/", result_name, ".RData", sep = "")
+      save(results, file = filename)
+      print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
+    }
   }
-  #sink("output.txt")
-  if(l == 1){
-    results <- run_markov_chain(data = zoo, 
-                                attrisize = mm, 
-                                gamma = 0.68, 
-                                v = v, 
-                                w = w, 
-                                verbose = 0, 
-                                m = m, 
-                                iterations = iterations,
-                                c_i = rep(0,nrow(zoo)),
-                                burnin = burnin,
-                                t = t, 
-                                r = r,
-                                neal8 = n8,
-                                split_merge = sam,
-                                n8_step_size = n8_step,
-                                sam_step_size = sam_step)
-  }
-  else if(l == 101){
-    results <- run_markov_chain(data = zoo, 
-                                attrisize = mm, 
-                                gamma = 0.68, 
-                                v = v, 
-                                w = w, 
-                                verbose = 0, 
-                                m = m, 
-                                iterations = iterations,
-                                c_i = seq(1,nrow(zoo)),
-                                burnin = burnin,
-                                t = t, 
-                                r = r,
-                                neal8 = n8,
-                                split_merge = sam,
-                                n8_step_size = n8_step,
-                                sam_step_size = sam_step)
-  }
-  else if(l == 0){
-    results <- run_markov_chain(data = zoo, 
-                                attrisize = mm, 
-                                gamma = 0.68, 
-                                v = v, 
-                                w = w, 
-                                verbose = 0, 
-                                m = m, 
-                                iterations = iterations,
-                                c_i = unlist(groundTruth), 
-                                burnin = burnin,
-                                t = t, 
-                                r = r,
-                                neal8 = n8,
-                                split_merge = sam,
-                                n8_step_size = n8_step,
-                                sam_step_size = sam_step)
-  }
-  else{
-    results <- run_markov_chain(data = zoo, 
-                                attrisize = mm, 
-                                gamma = 0.68, 
-                                v = v, 
-                                w = w, 
-                                verbose = 0, 
-                                m = m, 
-                                iterations = iterations,
-                                L = l,
-                                burnin = burnin,
-                                t = t, 
-                                r = r,
-                                neal8 = n8,
-                                split_merge = sam,
-                                n8_step_size = n8_step,
-                                sam_step_size = sam_step)
-  }
-  #sink(NULL)
-  #result_name = paste(result_name, "init_ass_", sep="")
-  result_name = paste(result_name, "L", l, sep = "_")
-  if(n8){
-    result_name = paste(result_name, "M", m, sep = "_")
-  }
-  if(sam){
-    result_name = paste(result_name, "t", t, sep = "_")
-    result_name = paste(result_name, "r", r, sep = "_")
-  }
-  
-  result_name = paste(result_name, "BI", burnin, sep = "_")
-  result_name = paste(result_name, "IT", iterations, sep = "_")
-  result_name = paste(result_name, "time", results$time, sep = "_")
-  
-  # Save results
-  #filename <- paste("../results/", result_name, l, "_",m, "_", iterations,"_",temp_time, "_S&M",".RData", sep = "")
-  filename <- paste("../results/", result_name, ".RData", sep = "")
-  save(results, file = filename)
-  print(paste("Results for L = ", l, " saved in ", filename, sep = ""))
 }
 
 ### Posterior similarity matrix
@@ -276,7 +289,7 @@ for (file in rdata_files) {
   png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), 
       width = 800, height = 800)
   myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
-  dev.off()  # Close the device to save the first plot
+  #dev.off()  # Close the device to save the first plot
   #dev.off()
   
   # # Save the second plot

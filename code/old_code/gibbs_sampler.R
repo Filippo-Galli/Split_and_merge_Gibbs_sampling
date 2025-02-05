@@ -162,7 +162,6 @@ gibbs_mix_con = function(G,
       prob.tmp = Center_prob(data=data.tmp,
                              sigma = Sigma.curr[pos_ref[i],],
                              attrisize = attri_size)
-      
       Cent.curr[i,] = Samp_Center(center_prob = prob.tmp,attriList = attri_List,p=p)
       
       for (j in 1:p) {

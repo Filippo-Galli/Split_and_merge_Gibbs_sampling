@@ -1,0 +1,19 @@
+#ifndef HYPERG_HPP
+#define HYPERG_HPP
+
+#include <RcppGSL.h>
+#include <gsl/gsl_sf_hyperg.h>
+
+double norm_const(const double d, const double c, const double m);
+double hyperg(double a, double b, double c, double x);
+double lF_conK(const double u, const double d, const double c, const double m, const double K);
+double bisec_hyper(const double d, const double c, const double m, const double Omega);
+Rcpp::NumericVector dhyper_raf(const Rcpp::NumericVector u, const double d, const double c,
+                              const double m, const bool log_scale=false);
+double newton_hyper(const double d, const double c, const double m, const double Omega, const double u0=0.5);
+Rcpp::NumericVector rhyper_raf(const int n, const double d, const double c, const double m);
+Rcpp::NumericVector rhyper_sig(const int n, const double d, const double c, const double m);
+Rcpp::NumericVector dhyper_sig_raf(const Rcpp::NumericVector x, const double d, const double c,
+                                  const double m, const bool log_scale=false);
+
+#endif // HYPERG_HPP
