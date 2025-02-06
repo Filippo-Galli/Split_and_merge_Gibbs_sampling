@@ -24,7 +24,7 @@ v = c(rep(6,12), 3, rep(6,3))
 w = c(rep(0.25,12), 0.5, rep(0.25,3))
 
 n8 <- TRUE
-sam <- TRUE
+sam <- FALSE
 
 result_name_base = "Test"
 if(n8){
@@ -35,10 +35,10 @@ if(sam){
   result_name_base = paste(result_name_base, "SplitMerge", sep = "_")
 }
 
-#L_plurale <- c(101, 1, 0, 20, 5) # 5 siccome è log(n)
-L_plurale <- c(1)
+L_plurale <- c(101, 1, 0, 20, 5) # 5 siccome è log(n)
+#L_plurale <- c(1)
 iterations <- 10000
-burnin <- 5000
+burnin <- 20000
 m <- 3
 #sam_params <- list(c(1, 10), c(10, 1), c(10, 10), c(1, 1))
 sam_params <- list(c(10, 10))
@@ -289,7 +289,7 @@ for (file in rdata_files) {
   png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), 
       width = 800, height = 800)
   myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
-  #dev.off()  # Close the device to save the first plot
+  dev.off()  # Close the device to save the first plot
   #dev.off()
   
   # # Save the second plot

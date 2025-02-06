@@ -155,7 +155,8 @@ void sample_allocation_vec(int idx, const aux_data & const_data, internal_state 
     }
 }
 
-void sample_allocation(int idx, const aux_data & const_data, internal_state & state, const int m){
+void sample_allocation(int idx, const aux_data & const_data, internal_state & state, const int m, 
+                        const std::vector<NumericVector> & latent_center_reuse, const std::vector<NumericVector> & latent_sigma_reuse) {
     /**
      * @brief Sample new cluster assignment for observation i
      * @param idx Index of the observation
@@ -202,8 +203,9 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
 
     // initialize latent clusters
     for(int i = 0; i < m; ++i){
-        latent_centers.push_back(sample_center_1_cluster(const_data.attrisize));
-        latent_sigmas.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
+        int idx_latent = sample(latent_center_reuse.size(), 1, false)[0] - 1;
+        latent_centers.push_back(latent_center_reuse[idx_latent]);
+        latent_sigmas.push_back(latent_center_reuse[idx_latent]);
     }
 
     // Se l'osservazione è unica, il suo cluster diventa la prima classe latente
@@ -297,6 +299,24 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     }
 }
 
+// Function to calculate similarity between NumericVectors
+double vector_similarity_center(const NumericVector& a, const NumericVector& b) {
+    double similarity = 0;
+    for(int i = 0; i < a.length(); i++) {
+        similarity += (a[i] == b[i]) ? 1 : 0;
+    }
+    return similarity / a.length();
+}
+
+double vector_similarity_sigma(const NumericVector& a, const NumericVector& b) {
+    double similarity = 0;
+    double factor_similarity = 0.1;
+    for(int i = 0; i < a.length(); i++) {
+        similarity += (a[i] < (1 + factor_similarity)*b[i] || a[i] > (1 - factor_similarity)*b[i] ) ? 1 : 0;
+    }
+    return similarity / a.length();
+}
+
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
@@ -355,6 +375,40 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                                 Named("time") = IntegerVector(1)                           
                                 );
 
+    Rcpp::Rcout << "Sampling all the latent cluster in advance... " << std::endl; 
+
+    std::vector<NumericVector> latent_center_reuse;
+    latent_center_reuse.reserve(const_data.n*m*iterations);
+    std::vector<NumericVector> latent_sigma_reuse;
+    latent_sigma_reuse.reserve(const_data.n*m*iterations);
+    const double SIMILARITY_THRESHOLD = 0.8;
+
+for(int i = 0; i < const_data.n; ++i) {
+    NumericVector new_center = sample_center_1_cluster(const_data.attrisize);
+    NumericVector new_sigma = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+    
+    bool too_similar = false;
+    for(const auto& existing_center : latent_center_reuse) {
+        if(vector_similarity_center(new_center, existing_center) > SIMILARITY_THRESHOLD) {
+            too_similar = true;
+            i--; // Retry this iteration
+            break;
+        }
+    }
+    for(const auto& existing_sigma : latent_sigma_reuse) {
+        if(vector_similarity_center(new_center, existing_sigma) > SIMILARITY_THRESHOLD) {
+            too_similar = true;
+            i--; // Retry this iteration
+            break;
+        }
+    }
+    
+    if(!too_similar) {
+        latent_center_reuse.emplace_back(new_center);
+        latent_sigma_reuse.emplace_back(new_sigma);
+    }
+}
+
     auto start_time =  std::chrono::steady_clock::now();
     Rcpp::Rcout << "\nStarting Markov Chain sampling..." << std::endl;
 
@@ -373,7 +427,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
         if(neal8){
             for (int index_i = 0; index_i < const_data.n; index_i++) {
                 // Sample new cluster assignment for observation i
-                sample_allocation(index_i, const_data, state, m);       
+                sample_allocation(index_i, const_data, state, m, latent_center_reuse, latent_sigma_reuse);       
             } 
             
             // Update centers and sigmas
