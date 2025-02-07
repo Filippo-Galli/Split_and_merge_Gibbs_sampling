@@ -173,7 +173,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     const int k = uni_clas.length(); // numeri di cluster attivi
     const int k_minus = unique_classes_without_i.length(); // numeri di cluster attivi escludendo l'osservazione corrente
 
-    NumericVector probs(state.total_cls + m);
+    NumericVector probs(k + m);
 
     // Calculate allocation probabilities for existing clusters
     double log_likelihood = 0.0;
@@ -205,9 +205,8 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     for(int i = 0; i < m; ++i){
         int idx_latent = sample(latent_center_reuse.size(), 1, false)[0] - 1;
         latent_centers.push_back(latent_center_reuse[idx_latent]);
-        latent_sigmas.push_back(latent_center_reuse[idx_latent]);
+        latent_sigmas.push_back(latent_sigma_reuse[idx_latent]);
     }
-
     // Se l'osservazione è unica, il suo cluster diventa la prima classe latente
     if(k_minus < k){  
         latent_centers[0] = state.center[state.c_i[idx]];
@@ -272,9 +271,6 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
 
         // Aggiorno il numero di classi attive
         state.total_cls = k - 1;
-
-        // print state
-        print_internal_state(state);
         return;
     }
 
@@ -378,9 +374,9 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     Rcpp::Rcout << "Sampling all the latent cluster in advance... " << std::endl; 
 
     std::vector<NumericVector> latent_center_reuse;
-    latent_center_reuse.reserve(const_data.n*m*iterations);
+    latent_center_reuse.reserve(const_data.n*m*std::max(burnin, iterations));
     std::vector<NumericVector> latent_sigma_reuse;
-    latent_sigma_reuse.reserve(const_data.n*m*iterations);
+    latent_sigma_reuse.reserve(const_data.n*m*std::max(burnin, iterations));
     const double SIMILARITY_THRESHOLD = 0.8;
 
 for(int i = 0; i < const_data.n; ++i) {
@@ -419,67 +415,80 @@ for(int i = 0; i < const_data.n; ++i) {
     int accepted_merge = 0;
     int accepted_split = 0;
 
-    for (int iter = 0; iter < iterations + burnin; iter++) {
-        if(verbose != 0)
-            std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
+    try{
+        for (int iter = 0; iter < iterations + burnin; iter++) {
+            if(verbose != 0)
+                std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
 
-        // Sample new cluster assignments for each observation
-        if(neal8){
-            for (int index_i = 0; index_i < const_data.n; index_i++) {
-                // Sample new cluster assignment for observation i
-                sample_allocation(index_i, const_data, state, m, latent_center_reuse, latent_sigma_reuse);       
-            } 
-            
-            // Update centers and sigmas
-            update_centers(state, const_data);
-            update_sigma(state.sigma, state.center, state.c_i, const_data);
+            // Sample new cluster assignments for each observation
+            if(neal8){
+                for (int index_i = 0; index_i < const_data.n; index_i++) {
+                    // Sample new cluster assignment for observation i
+                    sample_allocation(index_i, const_data, state, m, latent_center_reuse, latent_sigma_reuse);       
+                } 
+                std::cout << "Neal8 passed" << std::endl;
+                
+                // Update centers and sigmas
+                update_centers(state, const_data);
+                update_sigma(state.sigma, state.center, state.c_i, const_data);
+
+                std::cout << "Update centers and sigmas passed" << std::endl;
+            }
+
+            if(verbose == 2){
+                std::cout << "State after Neal8" << std::endl;
+                print_internal_state(state);
+            }
+
+
+            double loglikelihood_bfsam = compute_loglikelihood(state, const_data);
+
+            // Split and merge step
+            if(split_merge && iter%sam_step_size==0){
+                split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n, accepted_merge, accepted_split);
+                print_internal_state(state);
+            }
+            std::cout << "Split and Merge passed" << std::endl;
+
+            if(verbose == 2){
+                std::cout << "State after Split and Merge" << std::endl;
+                print_internal_state(state);
+            }
+
+            // Calculate likelihood
+            double loglikelihood = compute_loglikelihood(state, const_data);
+
+            if(loglikelihood < -1000 && iter >= burnin){
+                as<IntegerVector>(results["drop_iter"])[iter - burnin] = 1;
+            }
+
+            // Update progress bar
+            if(verbose == 0)
+                print_progress_bar(iter + 1, iterations + burnin, start_time);
+
+            // Save results
+            if(iter >= burnin){
+                as<List>(results["total_cls"])[iter - burnin] = state.total_cls;
+                as<List>(results["c_i"])[iter - burnin] = clone(state.c_i);
+                as<List>(results["centers"])[iter - burnin] = clone(state.center);
+                as<List>(results["sigmas"])[iter - burnin] = clone(state.sigma);
+                as<NumericVector>(results["loglikelihood"])[iter - burnin] = loglikelihood;
+                as<NumericVector>(results["loglikelihood_bfsam"])[iter - burnin] = loglikelihood_bfsam;
+                as<NumericVector>(results["acceptance_ratio"])[iter - burnin] = acpt_ratio;
+                as<IntegerVector>(results["accepted"])[iter - burnin] = accepted;
+                as<IntegerVector>(results["split_n"])[iter - burnin] = split_n;
+                as<IntegerVector>(results["merge_n"])[iter - burnin] = merge_n;
+                as<IntegerVector>(results["accepted_merge"])[iter - burnin] = accepted_merge;
+                as<IntegerVector>(results["accepted_split"])[iter - burnin] = accepted_split;
+                
+            }
         }
-
-        if(verbose == 2){
-            std::cout << "State after Neal8" << std::endl;
-            print_internal_state(state);
-        }
-
-
-        double loglikelihood_bfsam = compute_loglikelihood(state, const_data);
-
-        // Split and merge step
-        if(split_merge && iter%sam_step_size==0){
-            split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n, accepted_merge, accepted_split);
-        }
-
-        if(verbose == 2){
-            std::cout << "State after Split and Merge" << std::endl;
-            print_internal_state(state);
-        }
-
-        // Calculate likelihood
-        double loglikelihood = compute_loglikelihood(state, const_data);
-
-        if(loglikelihood<-1000 && iter >= burnin){
-            as<IntegerVector>(results["drop_iter"])[iter - burnin] = 1;
-        }
-
-        // Update progress bar
-        if(verbose == 0)
-            print_progress_bar(iter + 1, iterations + burnin, start_time);
-
-        // Save results
-        if(iter >= burnin){
-            as<List>(results["total_cls"])[iter - burnin] = state.total_cls;
-            as<List>(results["c_i"])[iter - burnin] = clone(state.c_i);
-            as<List>(results["centers"])[iter - burnin] = clone(state.center);
-            as<List>(results["sigmas"])[iter - burnin] = clone(state.sigma);
-            as<NumericVector>(results["loglikelihood"])[iter - burnin] = loglikelihood;
-            as<NumericVector>(results["loglikelihood_bfsam"])[iter - burnin] = loglikelihood_bfsam;
-            as<NumericVector>(results["acceptance_ratio"])[iter - burnin] = acpt_ratio;
-            as<IntegerVector>(results["accepted"])[iter - burnin] = accepted;
-            as<IntegerVector>(results["split_n"])[iter - burnin] = split_n;
-            as<IntegerVector>(results["merge_n"])[iter - burnin] = merge_n;
-            as<IntegerVector>(results["accepted_merge"])[iter - burnin] = accepted_merge;
-            as<IntegerVector>(results["accepted_split"])[iter - burnin] = accepted_split;
-            
-        }
+    } catch (const std::exception& e) {
+        Rcpp::Rcout << "Error in the sampling: " << e.what() << std::endl;
+        throw;
+    } catch (...) {
+        Rcpp::Rcout << "Unknown error during sampling" << std::endl;
+        throw;
     }
     
     auto end_time = std::chrono::steady_clock::now();

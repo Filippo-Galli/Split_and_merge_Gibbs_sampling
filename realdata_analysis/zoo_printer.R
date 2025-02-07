@@ -24,7 +24,7 @@ v = c(rep(6,12), 3, rep(6,3))
 w = c(rep(0.25,12), 0.5, rep(0.25,3))
 
 n8 <- TRUE
-sam <- FALSE
+sam <- TRUE
 
 result_name_base = "Test"
 if(n8){
@@ -37,15 +37,16 @@ if(sam){
 
 L_plurale <- c(101, 1, 0, 20, 5) # 5 siccome è log(n)
 #L_plurale <- c(1)
-iterations <- 10000
-burnin <- 20000
+iterations <- 1000
+burnin <- 0
 m <- 3
-#sam_params <- list(c(1, 10), c(10, 1), c(10, 10), c(1, 1))
-sam_params <- list(c(10, 10))
+sam_params <- list(c(1, 10), c(10, 1), c(10, 10), c(1, 1))
+#sam_params <- list(c(10, 10))
 #steps <- list(c(1, 1), c(1, 10), c(10, 1), c(20, 1))
 steps <- list(c(1, 1))
 
 Rcpp::sourceCpp("../code/neal8.cpp")
+verbose <- 1
 
 for(step in steps){
   n8_step <- step[1]
@@ -73,7 +74,7 @@ for(step in steps){
                                     gamma = 0.68, 
                                     v = v, 
                                     w = w, 
-                                    verbose = 0, 
+                                    verbose = verbose, 
                                     m = m, 
                                     iterations = iterations,
                                     c_i = rep(0,nrow(zoo)),
@@ -91,7 +92,7 @@ for(step in steps){
                                     gamma = 0.68, 
                                     v = v, 
                                     w = w, 
-                                    verbose = 0, 
+                                    verbose = verbose, 
                                     m = m, 
                                     iterations = iterations,
                                     c_i = seq(1,nrow(zoo)),
@@ -109,7 +110,7 @@ for(step in steps){
                                     gamma = 0.68, 
                                     v = v, 
                                     w = w, 
-                                    verbose = 0, 
+                                    verbose = verbose, 
                                     m = m, 
                                     iterations = iterations,
                                     c_i = unlist(groundTruth), 
@@ -127,7 +128,7 @@ for(step in steps){
                                     gamma = 0.68, 
                                     v = v, 
                                     w = w, 
-                                    verbose = 0, 
+                                    verbose = verbose, 
                                     m = m, 
                                     iterations = iterations,
                                     L = l,
@@ -140,14 +141,14 @@ for(step in steps){
                                     sam_step_size = sam_step)
       }
       #sink(NULL)
-      #result_name = paste(result_name, "init_ass_", sep="")
       result_name = paste(result_name, "L", l, sep = "_")
       if(n8){
-        result_name = paste(result_name, "M", m, sep = "_")
+        result_name = paste(result_name, "M", m, "N8step", n8_step, sep = "_")
       }
       if(sam){
         result_name = paste(result_name, "t", t, sep = "_")
         result_name = paste(result_name, "r", r, sep = "_")
+        result_name = paste(result_name, "SM_step", sam_step, sep = "_")
       }
       
       result_name = paste(result_name, "BI", burnin, sep = "_")
