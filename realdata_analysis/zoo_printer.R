@@ -37,16 +37,16 @@ if(sam){
 
 L_plurale <- c(101, 1, 0, 20, 5) # 5 siccome è log(n)
 #L_plurale <- c(1)
-iterations <- 1000
+iterations <- 10000
 burnin <- 0
 m <- 3
-sam_params <- list(c(1, 10), c(10, 1), c(10, 10), c(1, 1))
+sam_params <- list(c(5, 5), c(10, 10))
 #sam_params <- list(c(10, 10))
 #steps <- list(c(1, 1), c(1, 10), c(10, 1), c(20, 1))
 steps <- list(c(1, 1))
 
 Rcpp::sourceCpp("../code/neal8.cpp")
-verbose <- 1
+verbose <- 0
 
 for(step in steps){
   n8_step <- step[1]

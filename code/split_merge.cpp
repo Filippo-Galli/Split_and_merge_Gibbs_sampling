@@ -211,7 +211,6 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
        
         // Sample new cluster assignment between the two clusters of i_1 and i_2
         state.c_i[s] = sample(IntegerVector::create(c_i_1, c_i_2), 1, true, probs)[0];
-
     }
 
     update_centers(state, const_data, {c_i_1, c_i_2});
@@ -601,7 +600,7 @@ void split_and_merge(internal_state & state,
     
     // Accept/reject step
     if(log(R::runif(0,1)) < acpt_ratio) {
-        state = std::move(state_star);
+        clean_var(state, state_star, unique_classes(state_star.c_i), const_data.attrisize);
         accepted++;
         if(type == 1) {
             accepted_split++;

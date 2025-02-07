@@ -379,31 +379,31 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     latent_sigma_reuse.reserve(const_data.n*m*std::max(burnin, iterations));
     const double SIMILARITY_THRESHOLD = 0.8;
 
-for(int i = 0; i < const_data.n; ++i) {
-    NumericVector new_center = sample_center_1_cluster(const_data.attrisize);
-    NumericVector new_sigma = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
-    
-    bool too_similar = false;
-    for(const auto& existing_center : latent_center_reuse) {
-        if(vector_similarity_center(new_center, existing_center) > SIMILARITY_THRESHOLD) {
-            too_similar = true;
-            i--; // Retry this iteration
-            break;
+    for(int i = 0; i < const_data.n; ++i) {
+        NumericVector new_center = sample_center_1_cluster(const_data.attrisize);
+        NumericVector new_sigma = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+        
+        bool too_similar = false;
+        for(const auto& existing_center : latent_center_reuse) {
+            if(vector_similarity_center(new_center, existing_center) > SIMILARITY_THRESHOLD) {
+                too_similar = true;
+                i--; // Retry this iteration
+                break;
+            }
+        }
+        for(const auto& existing_sigma : latent_sigma_reuse) {
+            if(vector_similarity_center(new_center, existing_sigma) > SIMILARITY_THRESHOLD) {
+                too_similar = true;
+                i--; // Retry this iteration
+                break;
+            }
+        }
+        
+        if(!too_similar) {
+            latent_center_reuse.emplace_back(new_center);
+            latent_sigma_reuse.emplace_back(new_sigma);
         }
     }
-    for(const auto& existing_sigma : latent_sigma_reuse) {
-        if(vector_similarity_center(new_center, existing_sigma) > SIMILARITY_THRESHOLD) {
-            too_similar = true;
-            i--; // Retry this iteration
-            break;
-        }
-    }
-    
-    if(!too_similar) {
-        latent_center_reuse.emplace_back(new_center);
-        latent_sigma_reuse.emplace_back(new_sigma);
-    }
-}
 
     auto start_time =  std::chrono::steady_clock::now();
     Rcpp::Rcout << "\nStarting Markov Chain sampling..." << std::endl;
@@ -426,13 +426,10 @@ for(int i = 0; i < const_data.n; ++i) {
                     // Sample new cluster assignment for observation i
                     sample_allocation(index_i, const_data, state, m, latent_center_reuse, latent_sigma_reuse);       
                 } 
-                std::cout << "Neal8 passed" << std::endl;
                 
                 // Update centers and sigmas
                 update_centers(state, const_data);
                 update_sigma(state.sigma, state.center, state.c_i, const_data);
-
-                std::cout << "Update centers and sigmas passed" << std::endl;
             }
 
             if(verbose == 2){
@@ -448,7 +445,6 @@ for(int i = 0; i < const_data.n; ++i) {
                 split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n, accepted_merge, accepted_split);
                 print_internal_state(state);
             }
-            std::cout << "Split and Merge passed" << std::endl;
 
             if(verbose == 2){
                 std::cout << "State after Split and Merge" << std::endl;
