@@ -1,7 +1,7 @@
 #include "common_functions.hpp"
 #include "hyperg.hpp"
 
-bool debug_var = false;
+bool debug_var = true;
 
 // Debug utilities
 namespace debug {
@@ -142,6 +142,24 @@ void print_progress_bar(int progress, int total, const std::chrono::steady_clock
     
     // Ensure output is displayed immediately
     R_FlushConsole();
+}
+
+void validate_state(const internal_state& state, const std::string& message) {
+    if(debug_var){
+        // Ensure consistency between c_i and total_cls
+        IntegerVector unique_cls = unique_classes(state.c_i);
+        if (unique_cls.length() != state.total_cls) {
+            std::string error_message = "State validation failed: inconsistent cluster count from " + message;
+            Rcpp::stop(error_message);
+        }
+        
+        // Validate center and sigma lists
+        if (state.center.length() != state.total_cls || 
+            state.sigma.length() != state.total_cls) {
+            std::string error_message = "State validation failed: inconsistent parameter lengths from " + message;
+            Rcpp::stop(error_message);
+        }
+    }
 }
 
 // Initialization functions

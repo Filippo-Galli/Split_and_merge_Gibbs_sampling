@@ -247,6 +247,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     if( new_cls < k && k_minus == k){
         // Update allocation
         state.c_i[idx] = new_cls;
+        validate_state(state, "Neal8 case 1");
         return;
     }
 
@@ -271,6 +272,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
 
         // Aggiorno il numero di classi attive
         state.total_cls = k - 1;
+        validate_state(state, "Neal8 case 2");
         return;
     }
 
@@ -282,7 +284,8 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
         state.sigma.push_back(latent_sigmas[new_cls - k]);
 
         // Aggiorno il numero di classi attive
-        state.total_cls = k + 1;
+        state.total_cls += 1;
+        validate_state(state, "Neal8 case 3");
         return;
     }
 
@@ -291,6 +294,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
         // sostituisco la vecchia classe con la classe latente
         state.center[old_cls] = std::move(latent_centers[new_cls - k]);
         state.sigma[old_cls] = std::move(latent_sigmas[new_cls - k]);
+        validate_state(state, "Neal8 case 4");
         return;
     }
 }
@@ -443,7 +447,6 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             // Split and merge step
             if(split_merge && iter%sam_step_size==0){
                 split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n, accepted_merge, accepted_split);
-                print_internal_state(state);
             }
 
             if(verbose == 2){

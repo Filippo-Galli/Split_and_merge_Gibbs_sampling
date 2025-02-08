@@ -293,6 +293,8 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
         split_restricted_gibbs_sampler(S, state_launch_split, i_1, i_2, const_data);
     }
 
+    validate_state(state_launch_split, "split_launch_state");
+
     // // Initialize split launch state
     // IntegerVector c_L_split = clone(state.c_i);
     // List center_L_split = clone(state.center);
@@ -365,6 +367,8 @@ internal_state merge_launch_state(const std::vector<int> & S,
         update_centers(state_launch_merge, const_data, {state_launch_merge.c_i[i_2]});
         update_sigma(state_launch_merge.sigma, state_launch_merge.center, state_launch_merge.c_i, const_data, {state_launch_merge.c_i[i_2]});
     }
+
+    validate_state(state_launch_merge, "merge_launch_state");
 
     return state_launch_merge;
 }
@@ -597,10 +601,13 @@ void split_and_merge(internal_state & state,
         type = 2;
         merge_n++;
     }
+
+    validate_state(state_star, "split_and_merge - state_star");
     
     // Accept/reject step
     if(log(R::runif(0,1)) < acpt_ratio) {
         clean_var(state, state_star, unique_classes(state_star.c_i), const_data.attrisize);
+        validate_state(state, "split_and_merge - state");
         accepted++;
         if(type == 1) {
             accepted_split++;

@@ -7,6 +7,7 @@
 #include <vector>
 #include <set>
 #include <chrono>
+#include <string>
 
 #include <Rcpp.h>
 #include <RcppGSL.h>  // Add this explicit RcppGSL include
@@ -46,6 +47,7 @@ alignas(64) struct aux_data {
     NumericVector w;
 };
 
+void validate_state(const internal_state& state, const std::string& message);
 
 void print_internal_state(const internal_state& state, int interest = -1);
 
