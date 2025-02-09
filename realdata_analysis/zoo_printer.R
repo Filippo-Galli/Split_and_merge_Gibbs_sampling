@@ -4,6 +4,7 @@ library(mcclust.ext)
 library(ggplot2)
 library(tidyverse)
 library(pheatmap)
+library(LaplacesDemon)
 rm(list=ls())
 source("../code/old_code/complement_functions.R")
 
@@ -162,7 +163,7 @@ for(step in steps){
 }
 
 ### Posterior similarity matrix
-results_dir <- file.path(getwd(), "../results")
+results_dir <- file.path(getwd(), "../AA_Test_Server")
 dir.exists(results_dir)
 print(normalizePath(results_dir))
 rdata_files <- list.files(results_dir, full.names = TRUE)
@@ -203,7 +204,7 @@ for (file in rdata_files) {
     theme_minimal() +
     scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
   print(p1)
-  ggsave(filename = file.path(output_dir, paste0(file_base, "_posterior_distribution.png")), plot = p1, bg = "white")
+  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_posterior_distribution.png")), plot = p1, bg = "white")
   
   ### Second plot - Trace of number of clusters
   total_cls_df <- data.frame(
@@ -223,7 +224,7 @@ for (file in rdata_files) {
     ) +
     theme_minimal()
   print(p2)
-  ggsave(filename = file.path(output_dir, paste0(file_base, "_trace_num_clusters.png")), plot = p2, bg = "white")
+  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_trace_num_clusters.png")), plot = p2, bg = "white")
   
   ### Third plot - Plot the log-likelihood
   # log_likelihood_df <- data.frame(
@@ -257,7 +258,7 @@ for (file in rdata_files) {
     ) +
     theme_minimal()
   print(p3_bis)
-  ggsave(filename = file.path(output_dir, paste0(file_base, "_log_likelihood_bfsm.png")), plot = p3_bis, bg = "white")
+  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_log_likelihood_bfsm.png")), plot = p3_bis, bg = "white")
   
   ### Fourth plot - Posterior similarity matrix
   # Vectorized approach to create the matrix
@@ -284,24 +285,24 @@ for (file in rdata_files) {
   
   cat("\nAdjusted Rand Index:", arandi(VI$cl, groundTruth), "\n")
   arandi(VI$cl, groundTruth)
-  png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), 
-      width = 800, height = 800)
-  myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
-  dev.off()  # Close the device to save the first plot
+  #png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), 
+   #   width = 800, height = 800)
+  #myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
+  #dev.off()  # Close the device to save the first plot
   #dev.off()
   
   # # Save the second plot
-  # png(filename = file.path(output_dir, paste0(file_base, "m_gt.png")), 
-  #     width = 800, height = 800)
-  # myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
-  # dev.off()  # Close the device to save the second plot
+   png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_gt.png")), 
+       width = 800, height = 800)
+   myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
+   dev.off()  # Close the device to save the second plot
+
+   png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_s.png")), 
+       width = 800, height = 800)
+   myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
+   dev.off()
   
-  # png(filename = file.path(output_dir, paste0(file_base, "m_s.png")), 
-  #     width = 800, height = 800)
-  # myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
-  # dev.off()
-  
-  # graphics.off()
+   graphics.off()
   }
 }
 
@@ -323,6 +324,21 @@ intersection_index <- intersect(groundTruth_indices, VI_indices)
 
 nam[intersection_index]
 nam[VI_indices]
+
+#LapacleDeamon
+
+mcmc_list <- list( ncls = unlist(results$total_cls), logl = results$loglikelihood)
+mcmc_matrix <- do.call(cbind, mcmc_list)
+
+library(LaplacesDemon)
+
+# Check effective sample size (ESS)
+ess <- ESS(mcmc_matrix)
+print(ess)
+
+# Check integrated autocorrelation time (IAT)
+iat <- IAT(mcmc_matrix)
+print(iat)
 
 #=========================================================================================
 # Gibbs sampler HMM
