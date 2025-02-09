@@ -213,6 +213,9 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
         state.c_i[s] = sample(IntegerVector::create(c_i_1, c_i_2), 1, true, probs)[0];
     }
 
+    // check for empty clusters
+    clean_var(state, state, unique_classes(state.c_i), const_data.attrisize);
+
     update_centers(state, const_data, {c_i_1, c_i_2});
     update_sigma(state.sigma, state.center, state.c_i, const_data, {c_i_1, c_i_2});
 }

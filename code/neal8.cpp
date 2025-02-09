@@ -244,7 +244,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
 
     // Update center and sigma
     // Caso 1: prendiamo una classe nota e non togliamo nessuna classe (non stiamo analizzando un'osservazione unica)
-    if( new_cls < k && k_minus == k){
+    if( sum(state.c_i == state.c_i[idx]) != 1 && new_cls < k){
         // Update allocation
         state.c_i[idx] = new_cls;
         validate_state(state, "Neal8 case 1");
@@ -252,7 +252,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     }
 
     // Caso 2: prendiamo una classe nota e togliamo una classe (stiamo analizzando un'osservazione unica)
-    if( new_cls < k && k_minus < k){
+    if( new_cls < k && sum(state.c_i == state.c_i[idx]) == 1 ){
         // Update allocation
         state.c_i[idx] = new_cls;
         // sostituisco la vecchia classe con l'ultima classe attiva
@@ -277,7 +277,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     }
 
     // Caso 3: prendiamo una classe latente e non togliamo nessuna classe
-    if( new_cls >= k && k_minus == k){
+    if( new_cls >= k && sum(state.c_i == state.c_i[idx]) != 1){
         // Update allocation
         state.c_i[idx] = k;
         state.center.push_back(latent_centers[new_cls - k]);
@@ -290,7 +290,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     }
 
     // Caso 4: prendiamo una classe latente e togliamo una classe
-    if (new_cls >= k && k_minus < k){
+    if (new_cls >= k && sum(state.c_i == state.c_i[idx]) == 1){
         // sostituisco la vecchia classe con la classe latente
         state.center[old_cls] = std::move(latent_centers[new_cls - k]);
         state.sigma[old_cls] = std::move(latent_sigmas[new_cls - k]);

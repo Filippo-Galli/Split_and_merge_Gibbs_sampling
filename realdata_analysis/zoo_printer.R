@@ -1,4 +1,4 @@
-setwd("~/Documents/Split_and_merge_Gibbs_sampling/realdata_analysis")
+setwd("~/test_pippo/Split_and_merge_Gibbs_sampling/realdata_analysis")
 library(AntMAN)
 library(mcclust.ext)
 library(ggplot2)
@@ -36,14 +36,11 @@ if(sam){
 }
 
 L_plurale <- c(101, 1, 0, 20, 5) # 5 siccome è log(n)
-#L_plurale <- c(1)
 iterations <- 10000
-burnin <- 10000
+burnin <- 15000
 m <- 3
-sam_params <- list(c(5, 5), c(10, 10), c(20, 20))
-#sam_params <- list(c(10, 10))
-#steps <- list(c(1, 1), c(1, 10), c(10, 1), c(20, 1))
-steps <- list(c(1, 1))
+sam_params <- list(c(5, 5), c(10, 10), c(20, 20), c(5, 20), c(20, 5))
+steps <- list(c(1, 10), c(10, 1))
 
 Rcpp::sourceCpp("../code/neal8.cpp")
 verbose <- 0

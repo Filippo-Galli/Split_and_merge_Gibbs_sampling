@@ -150,6 +150,8 @@ void validate_state(const internal_state& state, const std::string& message) {
         IntegerVector unique_cls = unique_classes(state.c_i);
         if (unique_cls.length() != state.total_cls) {
             std::string error_message = "State validation failed: inconsistent cluster count from " + message;
+	    print_internal_state(state, 1);
+	    Rcpp::Rcout << "Unique classes: " << unique_cls << std::endl;
             Rcpp::stop(error_message);
         }
         
@@ -157,6 +159,8 @@ void validate_state(const internal_state& state, const std::string& message) {
         if (state.center.length() != state.total_cls || 
             state.sigma.length() != state.total_cls) {
             std::string error_message = "State validation failed: inconsistent parameter lengths from " + message;
+	    print_internal_state(state, -1);
+	    Rcpp::Rcout << "Unique classes: " << unique_cls << std::endl;
             Rcpp::stop(error_message);
         }
     }
