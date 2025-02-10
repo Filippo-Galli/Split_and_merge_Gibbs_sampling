@@ -37,11 +37,16 @@ if(sam){
 }
 
 L_plurale <- c(101, 20, 0, 5, 1) # 5 siccome è log(n)
-iterations <- 10000
-burnin <- 15000
+iterations <- 20000
+burnin <- 10000
 m <- 3
 t_s <- c(5, 10, 15, 20, 30)
 r_s <- c(5, 10, 15, 20, 30)
+
+
+t_s <- c(5)
+r_s <- c(5)
+L_plurale <- c(101, 0, 1)
 
 # Generate all combinations and filter for matches
 combinations <- expand.grid(t = t_s, r = r_s)
@@ -55,7 +60,10 @@ steps <- list(c(1, 1))
 
 Rcpp::sourceCpp("../code/neal8.cpp")
 verbose <- 0
-thinning <- 2
+thinning <- 1
+
+# [IMPORTANT] Gamma test improve loglikelihood and acf
+gamma <- 5
 
 for(step in steps){
   n8_step <- step[1]
@@ -80,7 +88,7 @@ for(step in steps){
       if(l == 1){
         results <- run_markov_chain(data = zoo, 
                                     attrisize = mm, 
-                                    gamma = 0.68, 
+                                    gamma = gamma, 
                                     v = v, 
                                     w = w, 
                                     verbose = verbose, 
@@ -99,7 +107,7 @@ for(step in steps){
       else if(l == 101){
         results <- run_markov_chain(data = zoo, 
                                     attrisize = mm, 
-                                    gamma = 0.68, 
+                                    gamma = gamma, 
                                     v = v, 
                                     w = w, 
                                     verbose = verbose, 
@@ -118,7 +126,7 @@ for(step in steps){
       else if(l == 0){
         results <- run_markov_chain(data = zoo, 
                                     attrisize = mm, 
-                                    gamma = 0.68, 
+                                    gamma = gamma, 
                                     v = v, 
                                     w = w, 
                                     verbose = verbose, 
@@ -137,7 +145,7 @@ for(step in steps){
       else{
         results <- run_markov_chain(data = zoo, 
                                     attrisize = mm, 
-                                    gamma = 0.68, 
+                                    gamma = gamma, 
                                     v = v, 
                                     w = w, 
                                     verbose = verbose, 
@@ -262,122 +270,128 @@ mcmc_params <- extract_mcmc_parameters(rdata_files, groundTruth)
 save(mcmc_params, file = "../results/mcmc_params.RData") 
 
 # Plot 
-# idx <- 0
-# for (file in rdata_files) {
-#   idx <- idx + 1
-#   # Print file name 
-#   print(file)
-#   l <- L_plurale[idx]
-#   load(file)
+idx <- 0
+for (file in rdata_files) {
+  idx <- idx + 1
+  # Print file name 
+  print(file)
+  l <- L_plurale[idx]
+  load(file)
   
-#   # Extract file name without extension
-#   file_base <- tools::file_path_sans_ext(basename(file))
+  # Extract file name without extension
+  file_base <- tools::file_path_sans_ext(basename(file))
   
-#   # Create a folder for saving plots if it doesn't exist
-#   output_dir <- paste("../print/plot",file_base, sep = "_")  # Change this to your desired folder
-#   if (!dir.exists(output_dir)) {
-#     dir.create(output_dir)
+  # Create a folder for saving plots if it doesn't exist
+  output_dir <- paste("../print/plot",file_base, sep = "_")  # Change this to your desired folder
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir)
   
-#   ### First plot - Posterior distribution of the number of clusters
-#   # Calculation
-#   post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
-#   title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
-#   df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
-#                    rel_freq = as.numeric(post_total_cls))
-#   # Create plot
-#   p1 <- ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
-#     geom_col() + 
-#     labs(
-#       x = "Cluster Found",
-#       y = "Relative Frequency",
-#       title = title
-#     ) +
-#     theme_minimal() +
-#     scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
-#   print(p1)
-#   ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_posterior_distribution.png")), plot = p1, bg = "white")
+  ### First plot - Posterior distribution of the number of clusters
+  # Calculation
+  post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
+  title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
+  df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
+                   rel_freq = as.numeric(post_total_cls))
+  # Create plot
+  p1 <- ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
+    geom_col() + 
+    labs(
+      x = "Cluster Found",
+      y = "Relative Frequency",
+      title = title
+    ) +
+    theme_minimal() +
+    scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
+  print(p1)
+  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_posterior_distribution.png")), plot = p1, bg = "white")
   
-#   ### Second plot - Trace of number of clusters
-#   total_cls_df <- data.frame(
-#     Iteration = seq_along(results$total_cls),
-#     NumClusters = unlist(results$total_cls)
-#   )
+  ### Second plot - Trace of number of clusters
+  total_cls_df <- data.frame(
+    Iteration = seq_along(results$total_cls),
+    NumClusters = unlist(results$total_cls)
+  )
   
-#   total_cls_df_long <- total_cls_df %>%
-#     pivot_longer(cols = starts_with("NumClusters"), names_to = "variable", values_to = "value")
+  total_cls_df_long <- total_cls_df %>%
+    pivot_longer(cols = starts_with("NumClusters"), names_to = "variable", values_to = "value")
   
-#   p2 <- ggplot(total_cls_df_long, aes(x = Iteration, y = value)) +
-#     geom_line() +
-#     labs(
-#       x = "Iteration", 
-#       y = "Number of clusters", 
-#       title = paste("Trace of Number of Clusters starting from L =", l)
-#     ) +
-#     theme_minimal()
-#   print(p2)
-#   ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_trace_num_clusters.png")), plot = p2, bg = "white")
+  p2 <- ggplot(total_cls_df_long, aes(x = Iteration, y = value)) +
+    geom_line() +
+    labs(
+      x = "Iteration", 
+      y = "Number of clusters", 
+      title = paste("Trace of Number of Clusters starting from L =", l)
+    ) +
+    theme_minimal()
+  print(p2)
+  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_trace_num_clusters.png")), plot = p2, bg = "white")
   
-#   ### inter plot - Plot the log-likelihood before S&M
-#   log_likelihood_df_bis <- data.frame(
-#     Iteration = seq_along(results$loglikelihood),
-#     LogLikelihood = results$loglikelihood
-#   )
+  ### inter plot - Plot the log-likelihood before S&M
+  log_likelihood_df_bis <- data.frame(
+    Iteration = seq_along(results$loglikelihood),
+    LogLikelihood = results$loglikelihood
+  )
   
-#   p3_bis <- ggplot(log_likelihood_df_bis, aes(x = Iteration, y = LogLikelihood)) +
-#     geom_line() +
-#     labs(
-#       x = "Iteration",
-#       y = "Log-Likelihood",
-#       title = "Log-Likelihood Trace"
-#     ) +
-#     theme_minimal()
-#   print(p3_bis)
-#   ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_log_likelihood_bfsm.png")), plot = p3_bis, bg = "white")
+  p3_bis <- ggplot(log_likelihood_df_bis, aes(x = Iteration, y = LogLikelihood)) +
+    geom_line() +
+    labs(
+      x = "Iteration",
+      y = "Log-Likelihood",
+      title = "Log-Likelihood Trace"
+    ) +
+    theme_minimal()
+  print(p3_bis)
+  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_log_likelihood_bfsm.png")), plot = p3_bis, bg = "white")
   
-#   ### Fourth plot - Posterior similarity matrix
-#   # Vectorized approach to create the matrix
-#   C <- matrix(unlist(lapply(results$c_i, function(x) x + 1)), 
-#               nrow = iterations, 
-#               ncol = nrow(zoo), 
-#               byrow = TRUE)
+  ### Fourth plot - Posterior similarity matrix
+  # Vectorized approach to create the matrix
+  C <- matrix(unlist(lapply(results$c_i, function(x) x + 1)), 
+              nrow = iterations, 
+              ncol = nrow(zoo), 
+              byrow = TRUE)
   
-#   required_packages <- c("spam", "fields", "viridisLite","RColorBrewer","pheatmap")
-#   for (pkg in required_packages) {
-#     if (!require(pkg, character.only = TRUE)) {
-#       install.packages(pkg)
-#       library(pkg, character.only = TRUE)
-#     }
-#   }
+  required_packages <- c("spam", "fields", "viridisLite","RColorBrewer","pheatmap")
+  for (pkg in required_packages) {
+    if (!require(pkg, character.only = TRUE)) {
+      install.packages(pkg)
+      library(pkg, character.only = TRUE)
+    }
+  }
   
-#   psm = comp.psm(C)
-#   ## estimated clustering
-#   VI = minVI(psm)
+  psm = comp.psm(C)
+  ## estimated clustering
+  VI = minVI(psm)
   
-#   # More informative output
-#   cat("Cluster Sizes:\n")
-#   print(table(VI$cl))
+  # More informative output
+  cat("Cluster Sizes:\n")
+  print(table(VI$cl))
   
-#   cat("\nAdjusted Rand Index:", arandi(VI$cl, groundTruth), "\n")
-#   arandi(VI$cl, groundTruth)
-#   png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), width = 800, height = 800)
-#   myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
-#   dev.off()  # Close the device to save the first plot
-#   dev.off()
-  
-#   # # Save the second plot
-#   #  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_gt.png")), 
-#   #      width = 800, height = 800)
-#   #  myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
-#   #  dev.off()  # Close the device to save the second plot
+  cat("\nAdjusted Rand Index:", arandi(VI$cl, groundTruth), "\n")
+  arandi(VI$cl, groundTruth)
+  png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), width = 800, height = 800)
+  myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
+  dev.off()  # Close the device to save the first plot
 
-#   #  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_s.png")), 
-#   #      width = 800, height = 800)
-#   #  myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
-#   #  dev.off()
+  # Fifth plot - Auto-correlation plot
+  mcmc_list <- list( ncls = unlist(results$total_cls), logl = results$loglikelihood)
+  mcmc_matrix <- do.call(cbind, mcmc_list)
+  png(filename = file.path(output_dir, paste0(file_base, "acf.png")), width = 800, height = 800)
+  acf(mcmc_matrix, main = "Auto-correlation plot")
+  dev.off()
   
-#   # graphics.off()
-#   }
-# }
+  # # Save the second plot
+  #  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_gt.png")), 
+  #      width = 800, height = 800)
+  #  myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
+  #  dev.off()  # Close the device to save the second plot
+
+  #  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_s.png")), 
+  #      width = 800, height = 800)
+  #  myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
+  #  dev.off()
+  
+  # graphics.off()
+  }
+}
 
 # load(rdata_files[1])
 

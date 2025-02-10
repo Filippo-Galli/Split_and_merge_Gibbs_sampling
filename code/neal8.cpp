@@ -209,19 +209,17 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     latent_center_reuse.reserve(latent_size);
     std::vector<NumericVector> latent_sigma_reuse;
     latent_sigma_reuse.reserve(latent_size);
-    const double SIMILARITY_THRESHOLD = 0.8;
 
     for(size_t i = 0; i < latent_size; ++i) {
         latent_center_reuse.emplace_back(sample_center_1_cluster(const_data.attrisize));
         latent_sigma_reuse.emplace_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
-        
     }
 
     auto start_time =  std::chrono::steady_clock::now();
     Rcpp::Rcout << "\nStarting Markov Chain sampling..." << std::endl;
 
     try{
-        for (int iter = 0; iter < iterations + burnin; iter++) {
+        for (int iter = 0; iter < (iterations + burnin)*thinning; ++iter) {
             if(verbose != 0)
                 std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
 
@@ -246,6 +244,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             if(split_merge && iter%sam_step_size==0){
                 split_and_merge(state, const_data, t, r);
             }
+            //std::cout << "DEBUG - passed s&m" << std::endl;
 
             if(verbose == 2){
                 std::cout << "State after Split and Merge" << std::endl;
@@ -257,15 +256,15 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
             // Update progress bar
             if(verbose == 0)
-                print_progress_bar(iter + 1, iterations + burnin, start_time);
+                print_progress_bar(iter + 1, (iterations + burnin)*thinning, start_time);
 
             // Save results
-            if(iter >= burnin and iter % thinning == 0){
-                as<List>(results["total_cls"])[iter - burnin] = state.total_cls;
-                as<List>(results["c_i"])[iter - burnin] = clone(state.c_i);
-                as<List>(results["centers"])[iter - burnin] = clone(state.center);
-                as<List>(results["sigmas"])[iter - burnin] = clone(state.sigma);
-                as<NumericVector>(results["loglikelihood"])[iter - burnin] = loglikelihood;                
+            if(iter >= thinning*burnin and iter % thinning == 0){
+                as<List>(results["total_cls"])[(iter)/thinning - burnin] = state.total_cls;
+                as<List>(results["c_i"])[(iter)/thinning - burnin] = clone(state.c_i);
+                as<List>(results["centers"])[(iter)/thinning - burnin] = clone(state.center);
+                as<List>(results["sigmas"])[(iter)/thinning - burnin] = clone(state.sigma);
+                as<NumericVector>(results["loglikelihood"])[(iter)/thinning - burnin] = loglikelihood;                
             }
         }
     } catch (const std::exception& e) {
