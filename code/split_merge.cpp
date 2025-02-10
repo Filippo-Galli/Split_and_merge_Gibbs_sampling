@@ -32,15 +32,15 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
     int c = gamma_star.c_i[choosen_idx];
 
     // Calculate conditional probability of parameters given data
-    NumericMatrix data_tmp = subset_data_for_cluster(const_data.data, c, gamma_star);
+    const NumericMatrix& data_tmp = subset_data_for_cluster(const_data.data, c, gamma_star);
 
     // Prior probability of centers
-    List prob_centers = Center_prob_pippo(data_tmp, 
+    const List& prob_centers = Center_prob_pippo(data_tmp, 
                                 gamma.sigma[gamma.c_i[choosen_idx]], 
                                 const_data.attrisize);
 
     // Calculate probability of center parameters
-    NumericVector centerstar = gamma_star.center[c];
+    const NumericVector& centerstar = gamma_star.center[c];
     for(int j = 0; j < centerstar.length(); j++) {
         NumericVector z = prob_centers[j];
         
@@ -51,12 +51,12 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
 
     double log_sigma_prob = 0;
     // Calculate probability of sigma parameters
-    NumericVector sigstar = gamma_star.sigma[c];
+    const NumericVector& sigstar = gamma_star.sigma[c];
     int nm = data_tmp.nrow();
-    NumericVector centers = gamma_star.center[c];
+    const NumericVector& centers = gamma_star.center[c];
     
     for(int j = 0; j < const_data.attrisize.length(); j++) {
-        NumericVector col = data_tmp(_, j);
+        const NumericVector& col = data_tmp(_, j);
         double sumdelta = sum(col == centers[j]);
         double new_v = const_data.v[j] + sumdelta;
         double new_w = const_data.w[j] + nm - sumdelta;
@@ -86,16 +86,15 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
 
     // Extract cluster of the first observation
     int c_i_1 = gamma.c_i[i_1];
-    NumericVector center1 = as<NumericVector>(gamma_star.center[c_i_1]);
-    NumericVector sigma1 = as<NumericVector>(gamma_star.sigma[c_i_1]);
+    const NumericVector& center1 = as<NumericVector>(gamma_star.center[c_i_1]);
+    const NumericVector& sigma1 = as<NumericVector>(gamma_star.sigma[c_i_1]);
 
     // Extract cluster of the second observation
     int c_i_2 = gamma.c_i[i_2];
-    NumericVector center2 = as<NumericVector>(gamma_star.center[c_i_2]);
-    NumericVector sigma2 = as<NumericVector>(gamma_star.sigma[c_i_2]);
+    const NumericVector& center2 = as<NumericVector>(gamma_star.center[c_i_2]);
+    const NumericVector& sigma2 = as<NumericVector>(gamma_star.sigma[c_i_2]);
 
     // support variable
-    NumericVector y_s;
     NumericVector probs(2);
     NumericVector center(const_data.attrisize.length());
     NumericVector sigma(const_data.attrisize.length());
@@ -104,7 +103,7 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
 
     for (int s : S) {
         // extract datum at s
-        y_s = const_data.data(s, _);
+        const NumericVector& y_s = const_data.data(s, _);
 
         // evaluate probabilities
         for (int k = 0; k < 2; k++) {
@@ -214,7 +213,7 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
     }
 
     // check for empty clusters
-    clean_var(state, state, unique_classes(state.c_i), const_data.attrisize);
+    //clean_var(state, state, unique_classes(state.c_i), const_data.attrisize);
 
     update_centers(state, const_data, {c_i_1, c_i_2});
     update_sigma(state.sigma, state.center, state.c_i, const_data, {c_i_1, c_i_2});
@@ -274,7 +273,6 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
     
     // Initialize cluster assignments
     IntegerVector S_indexes = wrap(S);
-    IntegerVector subset = state.c_i[S_indexes];
 
     // Initialize split launch state
     internal_state state_launch_split = {clone(state.c_i), clone(state.center), clone(state.sigma), state.total_cls};
@@ -345,6 +343,44 @@ internal_state merge_launch_state(const std::vector<int> & S,
      * @param const_data Auxiliary data for the MCMC algorithm
      * @return Internal state of the MCMC algorithm
      */
+
+    // internal_state state_launch_merge = {clone(state.c_i), clone(state.center), clone(state.sigma), state.total_cls};
+
+    // if(state.c_i[i_1] != state.c_i[i_2]) {
+    //     // change allocation from c_i[i_1] to c_i[i_2]
+    //     IntegerVector S_indexes = wrap(S);
+    //     state_launch_merge.c_i[S_indexes] = state.c_i[i_2];
+
+    //     // To avoid empty clusters [clean_var()]
+    //     // move the last cluster to the cluster of i_1
+    //     state_launch_merge.center[state.c_i[i_1]] = state.center[state.total_cls - 1];
+    //     state_launch_merge.sigma[state.c_i[i_1]] = state.sigma[state.total_cls - 1];
+
+    //     // remove the last cluster
+    //     state_launch_merge.center.erase(state.total_cls - 1);
+    //     state_launch_merge.sigma.erase(state.total_cls - 1);
+
+    //     // correct the indexes of the last cluster
+    //     for(int i = 0; i < state.c_i.length(); ++i) {
+    //         if(state.c_i[i] == state.total_cls - 1) {
+    //             state_launch_merge.c_i[i] = state.c_i[i_1];
+    //         }
+    //     }
+
+    //     // decrease the number of clusters
+    //     state_launch_merge.total_cls--;
+
+    //     // Move allocation of i_1 to the allocation of i_2
+    //     state_launch_merge.c_i[i_1] = state.c_i[i_2];
+    // }
+    // validate_state(state_launch_merge, "merge_launch_state pre update");
+
+    // // Update parameters r times
+    // for(int iter = 0; iter < r; ++iter) {
+    //     update_centers(state_launch_merge, const_data, {state_launch_merge.c_i[i_2]});
+    //     update_sigma(state_launch_merge.sigma, state_launch_merge.center, state_launch_merge.c_i, const_data, {state_launch_merge.c_i[i_2]});
+    // }
+
 
     // Initialize merge launch state
     IntegerVector c_L_merge = clone(state.c_i);
