@@ -577,34 +577,13 @@ double merge_acc_prob(const internal_state & state_merge,
 
 void split_and_merge(internal_state & state,
                     const aux_data & const_data,
-                    int t, int r,
-                    double & acpt_ratio,
-                    int & accepted,
-                    int & split_n,
-                    int & merge_n,
-                    int & accepted_merge,
-                    int & accepted_split) {
+                    int t, int r) {
     /**
      * @brief Perform the split and merge move
      * @param state Internal state of the MCMC algorithm
      * @param const_data Auxiliary data for the MCMC algorithm
      * @param t Number of restricted Gibbs scans for the split move
-     * @param r Number of restricted Gibbs scans for the merge move
-     * @param acpt_ratio Acceptance ratio
-     * @param accepted Number of accepted moves
-     * @param split_n Number of split moves
-     * @param merge_n Number of merge moves
-     * @param accepted_merge Number of accepted merge moves
-     * @param accepted_split Number of accepted split moves
-     * @return Updated state of the MCMC algorithm
-     * @return Updated acceptance ratio
-     * @return Updated number of accepted moves
-     * @return Updated number of split moves
-     * @return Updated number of merge moves
-     * @return Updated number of accepted merge moves
-     * @return Updated number of accepted split moves
-     * @return Updated state of the MCMC algorithm
-     * @return Updated acceptance ratio  
+     * @param r Number of restricted Gibbs scans for the merge move 
      */
     
     int i_1, i_2;
@@ -619,7 +598,7 @@ void split_and_merge(internal_state & state,
     
     // Initialize proposed state
     internal_state state_star = {IntegerVector(), List(), List(), 0};
-    acpt_ratio = .999;
+    double acpt_ratio = .999;
     int type = 0;
     
     if(state.c_i[i_1] == state.c_i[i_2]) {
@@ -627,8 +606,6 @@ void split_and_merge(internal_state & state,
         state_star = split_launch;
         split_restricted_gibbs_sampler(S, state_star, i_1, i_2, const_data);
         acpt_ratio = split_acc_prob(state_star, state, split_launch, merge_launch, S, i_1, i_2, const_data);
-        split_n++;
-        type = 1;
     } else {
         // Merge case
         state_star = merge_launch;
@@ -637,8 +614,6 @@ void split_and_merge(internal_state & state,
                     const_data, {state_star.c_i[i_2]});
         acpt_ratio = merge_acc_prob(state_star, state, split_launch, merge_launch,
                                   S, i_1, i_2, const_data);
-        type = 2;
-        merge_n++;
     }
 
     validate_state(state_star, "split_and_merge - state_star");
@@ -647,12 +622,5 @@ void split_and_merge(internal_state & state,
     if(log(R::runif(0,1)) < acpt_ratio) {
         clean_var(state, state_star, unique_classes(state_star.c_i), const_data.attrisize);
         validate_state(state, "split_and_merge - state");
-        accepted++;
-        if(type == 1) {
-            accepted_split++;
-        }
-        if(type == 2) {
-            accepted_merge++;
-        }
     }
 }

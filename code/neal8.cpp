@@ -8,153 +8,6 @@
 
 using namespace Rcpp;
 
-void sample_allocation_vec(int idx, const aux_data & const_data, internal_state & state, const int m) {
-
-    const NumericVector & y_i = const_data.data(idx, _);
-    const IntegerVector & uni_clas = unique_classes(state.c_i);
-    const IntegerVector & unique_classes_without_i = unique_classes_without_index(state.c_i, idx);
-    const int k = uni_clas.length();
-    const int k_minus = unique_classes_without_i.length();
-
-    // Create vector to store probabilities
-    NumericVector probs(k + m);
-    
-    // Count instances in each cluster (manually, since we can't use tabulate)
-    NumericVector cluster_counts(k);
-    for(int i = 0; i < state.c_i.length(); i++) {
-        if(state.c_i[i] < k) {
-            cluster_counts[state.c_i[i]]++;
-        }
-    }
-    
-    // Adjust count for current observation
-    if(state.c_i[idx] < k) {
-        cluster_counts[state.c_i[idx]]--;
-    }
-    
-    // Calculate log counts where count > 0
-    NumericVector log_counts(k);
-    for(int i = 0; i < k; i++) {
-        log_counts[i] = cluster_counts[i] > 0 ? std::log(cluster_counts[i]) : R_NegInf;
-    }
-    
-    // Calculate log-likelihoods for existing clusters
-    NumericVector cluster_log_likelihoods(k);
-    for(int cluster = 0; cluster < k; ++cluster) {
-        const NumericVector & sigma_k = state.sigma[cluster];
-        const NumericVector & center_k = state.center[cluster];
-        
-        double log_likelihood = 0.0;
-        for(int j = 0; j < y_i.length(); j++) {
-            log_likelihood += dhamming_pippo(y_i[j], 
-                                          center_k[j], 
-                                          sigma_k[j], 
-                                          const_data.attrisize[j]);
-        }
-        cluster_log_likelihoods[cluster] = log_likelihood;
-    }
-    
-    // Combine log counts and log-likelihoods for existing clusters
-    for(int i = 0; i < k; i++) {
-        probs[i] = log_counts[i] + cluster_log_likelihoods[i];
-    }
-    
-    // Sample and prepare latent clusters
-    std::vector<NumericVector> latent_centers;
-    std::vector<NumericVector> latent_sigmas;
-    latent_centers.reserve(m);
-    latent_sigmas.reserve(m);
-    
-    // Initialize latent clusters
-    for(int i = 0; i < m; ++i) {
-        latent_centers.push_back(sample_center_1_cluster(const_data.attrisize));
-        latent_sigmas.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
-    }
-    
-    // Handle unique observation case
-    if(k_minus < k) {
-        latent_centers[0] = state.center[state.c_i[idx]];
-        latent_sigmas[0] = state.sigma[state.c_i[idx]];
-    }
-    
-    // Calculate probabilities for latent clusters
-    const double log_factor = std::log(const_data.gamma/m);
-    
-    for(int latent = 0; latent < m; ++latent) {
-        const NumericVector & sigma_k = latent_sigmas[latent];
-        const NumericVector & center_k = latent_centers[latent];
-        
-        double log_likelihood = 0.0;
-        for(int j = 0; j < y_i.length(); j++) {
-            log_likelihood += dhamming_pippo(y_i[j],
-                                          center_k[j],
-                                          sigma_k[j],
-                                          const_data.attrisize[j]);
-        }
-        
-        probs[k + latent] = log_factor + log_likelihood;
-    }
-    
-    // Normalize probabilities using log-sum-exp trick
-    double max_prob = max(probs);
-    for(int j = 0; j < probs.length(); j++) {
-        probs[j] = std::exp(probs[j] - max_prob);
-    }
-    
-    double sum_exp = sum(probs);
-    for(int j = 0; j < probs.length(); j++) {
-        probs[j] /= sum_exp;
-    }
-    
-    // Create sequence for sampling
-    IntegerVector cls(k + m, 0);
-    std::iota(cls.begin(), cls.end(), 0);
-    
-    // Sample new allocation
-    int new_cls = sample(cls, 1, true, probs)[0];
-    int old_cls = state.c_i[idx];
-
-    // Update state based on cases
-    if(new_cls < k && k_minus == k) {
-        state.c_i[idx] = new_cls;
-        return;
-    }
-    
-    if(new_cls < k && k_minus < k) {
-        state.c_i[idx] = new_cls;
-        
-        // Move last center and sigma to old_cls position
-        state.center[old_cls] = state.center[k - 1];
-        state.sigma[old_cls] = state.sigma[k - 1];
-        
-        for(int i = 0; i < const_data.n; ++i) {
-            if(state.c_i[i] == (k - 1)) {
-                state.c_i[i] = old_cls;
-            }
-        }
-        
-        // Remove last elements using proper List methods
-        state.center.erase(k - 1);
-        state.sigma.erase(k - 1);
-        state.total_cls = k - 1;
-        return;
-    }
-    
-    if(new_cls >= k && k_minus == k) {
-        state.c_i[idx] = k;
-        state.center.push_back(latent_centers[new_cls - k]);
-        state.sigma.push_back(latent_sigmas[new_cls - k]);
-        state.total_cls = k + 1;
-        return;
-    }
-    
-    if(new_cls >= k && k_minus < k) {
-        state.center[old_cls] = std::move(latent_centers[new_cls - k]);
-        state.sigma[old_cls] = std::move(latent_sigmas[new_cls - k]);
-        return;
-    }
-}
-
 void sample_allocation(int idx, const aux_data & const_data, internal_state & state, const int m, 
                         const std::vector<NumericVector> & latent_center_reuse, const std::vector<NumericVector> & latent_sigma_reuse) {
     /**
@@ -299,28 +152,11 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
     }
 }
 
-// Function to calculate similarity between NumericVectors
-double vector_similarity_center(const NumericVector& a, const NumericVector& b) {
-    double similarity = 0;
-    for(int i = 0; i < a.length(); i++) {
-        similarity += (a[i] == b[i]) ? 1 : 0;
-    }
-    return similarity / a.length();
-}
-
-double vector_similarity_sigma(const NumericVector& a, const NumericVector& b) {
-    double similarity = 0;
-    double factor_similarity = 0.1;
-    for(int i = 0; i < a.length(); i++) {
-        similarity += (a[i] < (1 + factor_similarity)*b[i] || a[i] > (1 - factor_similarity)*b[i] ) ? 1 : 0;
-    }
-    return similarity / a.length();
-}
-
 // [[Rcpp::export]]
 List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
-                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool neal8=false, bool split_merge = true, int n8_step_size = 1, int sam_step_size = 1) {
+                    Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool neal8=false, 
+                    bool split_merge = true, int n8_step_size = 1, int sam_step_size = 1, int thinning = 1) {
     /**
      * @brief Main Markov Chain Monte Carlo sampling function
      * @param data Input data matrix
@@ -361,63 +197,28 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                                 Named("c_i") = List(iterations),
                                 Named("centers") = List(iterations),
                                 Named("sigmas") = List(iterations), 
-                                Named("drop_iter") = IntegerVector(iterations,0),
-                                Named("drop_iter_bfsam") = IntegerVector(iterations,0),
                                 Named("loglikelihood") = NumericVector(iterations), 
-                                Named("loglikelihood_bfsam") = NumericVector(iterations), 
-                                Named("acceptance_ratio") = NumericVector(iterations),
-                                Named("accepted") = IntegerVector(iterations),
-                                Named("split_n") = IntegerVector(iterations),
-                                Named("merge_n") = IntegerVector(iterations),
-                                Named("accepted_merge") = IntegerVector(iterations), 
-                                Named("accepted_split") = IntegerVector(iterations), 
                                 Named("final_ass") = IntegerVector(data.nrow()),
                                 Named("time") = IntegerVector(1)                           
                                 );
 
     Rcpp::Rcout << "Sampling all the latent cluster in advance... " << std::endl; 
 
+    const size_t latent_size = const_data.n*m*thinning;
     std::vector<NumericVector> latent_center_reuse;
-    latent_center_reuse.reserve(const_data.n*m*std::max(burnin, iterations));
+    latent_center_reuse.reserve(latent_size);
     std::vector<NumericVector> latent_sigma_reuse;
-    latent_sigma_reuse.reserve(const_data.n*m*std::max(burnin, iterations));
+    latent_sigma_reuse.reserve(latent_size);
     const double SIMILARITY_THRESHOLD = 0.8;
 
-    for(int i = 0; i < const_data.n; ++i) {
-        NumericVector new_center = sample_center_1_cluster(const_data.attrisize);
-        NumericVector new_sigma = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+    for(size_t i = 0; i < latent_size; ++i) {
+        latent_center_reuse.emplace_back(sample_center_1_cluster(const_data.attrisize));
+        latent_sigma_reuse.emplace_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
         
-        bool too_similar = false;
-        for(const auto& existing_center : latent_center_reuse) {
-            if(vector_similarity_center(new_center, existing_center) > SIMILARITY_THRESHOLD) {
-                too_similar = true;
-                i--; // Retry this iteration
-                break;
-            }
-        }
-        for(const auto& existing_sigma : latent_sigma_reuse) {
-            if(vector_similarity_center(new_center, existing_sigma) > SIMILARITY_THRESHOLD) {
-                too_similar = true;
-                i--; // Retry this iteration
-                break;
-            }
-        }
-        
-        if(!too_similar) {
-            latent_center_reuse.emplace_back(new_center);
-            latent_sigma_reuse.emplace_back(new_sigma);
-        }
     }
 
     auto start_time =  std::chrono::steady_clock::now();
     Rcpp::Rcout << "\nStarting Markov Chain sampling..." << std::endl;
-
-    double acpt_ratio = 0.0;
-    int accepted = 0; 
-    int split_n = 0;
-    int merge_n = 0;
-    int accepted_merge = 0;
-    int accepted_split = 0;
 
     try{
         for (int iter = 0; iter < iterations + burnin; iter++) {
@@ -441,12 +242,9 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                 print_internal_state(state);
             }
 
-
-            double loglikelihood_bfsam = compute_loglikelihood(state, const_data);
-
             // Split and merge step
             if(split_merge && iter%sam_step_size==0){
-                split_and_merge(state, const_data, t, r, acpt_ratio, accepted, split_n, merge_n, accepted_merge, accepted_split);
+                split_and_merge(state, const_data, t, r);
             }
 
             if(verbose == 2){
@@ -457,29 +255,17 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             // Calculate likelihood
             double loglikelihood = compute_loglikelihood(state, const_data);
 
-            if(loglikelihood < -1000 && iter >= burnin){
-                as<IntegerVector>(results["drop_iter"])[iter - burnin] = 1;
-            }
-
             // Update progress bar
             if(verbose == 0)
                 print_progress_bar(iter + 1, iterations + burnin, start_time);
 
             // Save results
-            if(iter >= burnin){
+            if(iter >= burnin and iter % thinning == 0){
                 as<List>(results["total_cls"])[iter - burnin] = state.total_cls;
                 as<List>(results["c_i"])[iter - burnin] = clone(state.c_i);
                 as<List>(results["centers"])[iter - burnin] = clone(state.center);
                 as<List>(results["sigmas"])[iter - burnin] = clone(state.sigma);
-                as<NumericVector>(results["loglikelihood"])[iter - burnin] = loglikelihood;
-                as<NumericVector>(results["loglikelihood_bfsam"])[iter - burnin] = loglikelihood_bfsam;
-                as<NumericVector>(results["acceptance_ratio"])[iter - burnin] = acpt_ratio;
-                as<IntegerVector>(results["accepted"])[iter - burnin] = accepted;
-                as<IntegerVector>(results["split_n"])[iter - burnin] = split_n;
-                as<IntegerVector>(results["merge_n"])[iter - burnin] = merge_n;
-                as<IntegerVector>(results["accepted_merge"])[iter - burnin] = accepted_merge;
-                as<IntegerVector>(results["accepted_split"])[iter - burnin] = accepted_split;
-                
+                as<NumericVector>(results["loglikelihood"])[iter - burnin] = loglikelihood;                
             }
         }
     } catch (const std::exception& e) {

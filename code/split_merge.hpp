@@ -42,12 +42,6 @@ double merge_acc_prob(const internal_state & state_merge,
 
 void split_and_merge(internal_state & state,
                     const aux_data & const_data,
-                    int t, int r,
-                    double & acpt_ratio,
-                    int & accepted,
-                    int & split_n,
-                    int & merge_n,
-                    int & accepted_merge,
-                    int & accepted_split);
+                    int t, int r);
 
 #endif // SPLIT_MERGE_HPP

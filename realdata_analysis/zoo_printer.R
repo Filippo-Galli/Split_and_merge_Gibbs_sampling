@@ -1,4 +1,4 @@
-setwd("~/test_pippo/Split_and_merge_Gibbs_sampling/realdata_analysis")
+setwd("~/Documents/Split_and_merge_Gibbs_sampling/realdata_analysis")
 library(AntMAN)
 library(mcclust.ext)
 library(ggplot2)
@@ -36,15 +36,26 @@ if(sam){
   result_name_base = paste(result_name_base, "SplitMerge", sep = "_")
 }
 
-L_plurale <- c(101, 1, 0, 20, 5) # 5 siccome è log(n)
+L_plurale <- c(101, 20, 0, 5, 1) # 5 siccome è log(n)
 iterations <- 10000
 burnin <- 15000
 m <- 3
-sam_params <- list(c(5, 5), c(10, 10), c(20, 20), c(5, 20), c(20, 5))
-steps <- list(c(1, 10), c(10, 1))
+t_s <- c(5, 10, 15, 20, 30)
+r_s <- c(5, 10, 15, 20, 30)
+
+# Generate all combinations and filter for matches
+combinations <- expand.grid(t = t_s, r = r_s)
+
+# Convert to desired format (list of vectors)
+sam_params <- split(combinations, seq(nrow(combinations)))
+sam_params <- lapply(sam_params, function(x) c(x$t, x$r))
+
+#sam_params <- list(c(5, 5))
+steps <- list(c(1, 1))
 
 Rcpp::sourceCpp("../code/neal8.cpp")
 verbose <- 0
+thinning <- 2
 
 for(step in steps){
   n8_step <- step[1]
@@ -82,7 +93,8 @@ for(step in steps){
                                     neal8 = n8,
                                     split_merge = sam,
                                     n8_step_size = n8_step,
-                                    sam_step_size = sam_step)
+                                    sam_step_size = sam_step, 
+                                    thinning = thinning)
       }
       else if(l == 101){
         results <- run_markov_chain(data = zoo, 
@@ -100,7 +112,8 @@ for(step in steps){
                                     neal8 = n8,
                                     split_merge = sam,
                                     n8_step_size = n8_step,
-                                    sam_step_size = sam_step)
+                                    sam_step_size = sam_step, 
+                                    thinning = thinning)
       }
       else if(l == 0){
         results <- run_markov_chain(data = zoo, 
@@ -118,7 +131,8 @@ for(step in steps){
                                     neal8 = n8,
                                     split_merge = sam,
                                     n8_step_size = n8_step,
-                                    sam_step_size = sam_step)
+                                    sam_step_size = sam_step, 
+                                    thinning = thinning)
       }
       else{
         results <- run_markov_chain(data = zoo, 
@@ -136,7 +150,8 @@ for(step in steps){
                                     neal8 = n8,
                                     split_merge = sam,
                                     n8_step_size = n8_step,
-                                    sam_step_size = sam_step)
+                                    sam_step_size = sam_step, 
+                                    thinning = thinning)
       }
       #sink(NULL)
       result_name = paste(result_name, "L", l, sep = "_")
@@ -162,334 +177,392 @@ for(step in steps){
   }
 }
 
-### Posterior similarity matrix
-results_dir <- file.path(getwd(), "../AA_Test_Server")
+#########
+# Posterior metrics
+#########
+results_dir <- file.path(getwd(), "../results")
 dir.exists(results_dir)
 print(normalizePath(results_dir))
 rdata_files <- list.files(results_dir, full.names = TRUE)
 
-dev.off()  # Close any open graphic devices
-graphics.off()  # Close all graphic devices
-
-idx <- 0
-for (file in rdata_files) {
-  idx <- idx + 1
-  # Print file name 
-  print(file)
-  l <- L_plurale[idx]
-  load(file)
-  
-  # Extract file name without extension
-  file_base <- tools::file_path_sans_ext(basename(file))
-  
-  # Create a folder for saving plots if it doesn't exist
-  output_dir <- paste("../print/plot",file_base, sep = "_")  # Change this to your desired folder
-  if (!dir.exists(output_dir)) {
-    dir.create(output_dir)
-  
-  ### First plot - Posterior distribution of the number of clusters
-  # Calculation
-  post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
-  title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
-  df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
-                   rel_freq = as.numeric(post_total_cls))
-  # Create plot
-  p1 <- ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
-    geom_col() + 
-    labs(
-      x = "Cluster Found",
-      y = "Relative Frequency",
-      title = title
-    ) +
-    theme_minimal() +
-    scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
-  print(p1)
-  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_posterior_distribution.png")), plot = p1, bg = "white")
-  
-  ### Second plot - Trace of number of clusters
-  total_cls_df <- data.frame(
-    Iteration = seq_along(results$total_cls),
-    NumClusters = unlist(results$total_cls)
-  )
-  
-  total_cls_df_long <- total_cls_df %>%
-    pivot_longer(cols = starts_with("NumClusters"), names_to = "variable", values_to = "value")
-  
-  p2 <- ggplot(total_cls_df_long, aes(x = Iteration, y = value)) +
-    geom_line() +
-    labs(
-      x = "Iteration", 
-      y = "Number of clusters", 
-      title = paste("Trace of Number of Clusters starting from L =", l)
-    ) +
-    theme_minimal()
-  print(p2)
-  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_trace_num_clusters.png")), plot = p2, bg = "white")
-  
-  ### Third plot - Plot the log-likelihood
-  # log_likelihood_df <- data.frame(
-  #   Iteration = seq_along(results$loglikelihood),
-  #   LogLikelihood = results$loglikelihood
-  # )
-  
-  # p3 <- ggplot(log_likelihood_df, aes(x = Iteration, y = LogLikelihood)) +
-  #   geom_line() +
-  #   labs(
-  #     x = "Iteration",
-  #     y = "Log-Likelihood",
-  #     title = "Log-Likelihood Trace"
-  #   ) +
-  #   theme_minimal()
-  # print(p3)
-  # ggsave(filename = file.path(output_dir, paste0(file_base, "_log_likelihood.png")), plot = p3, bg = "white")
-  
-  ### inter plot - Plot the log-likelihood before S&M
-  log_likelihood_df_bis <- data.frame(
-    Iteration = seq_along(results$loglikelihood_bfsam),
-    LogLikelihood = results$loglikelihood_bfsam
-  )
-  
-  p3_bis <- ggplot(log_likelihood_df_bis, aes(x = Iteration, y = LogLikelihood)) +
-    geom_line() +
-    labs(
-      x = "Iteration",
-      y = "Log-Likelihood",
-      title = "Log-Likelihood Trace"
-    ) +
-    theme_minimal()
-  print(p3_bis)
-  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_log_likelihood_bfsm.png")), plot = p3_bis, bg = "white")
-  
-  ### Fourth plot - Posterior similarity matrix
-  # Vectorized approach to create the matrix
-  C <- matrix(unlist(lapply(results$c_i, function(x) x + 1)), 
-              nrow = iterations, 
-              ncol = nrow(zoo), 
-              byrow = TRUE)
-  
-  required_packages <- c("spam", "fields", "viridisLite","RColorBrewer","pheatmap")
-  for (pkg in required_packages) {
-    if (!require(pkg, character.only = TRUE)) {
-      install.packages(pkg)
-      library(pkg, character.only = TRUE)
+extract_mcmc_parameters <- function(rdata_files, groundTruth = NULL) {
+  results_list <- lapply(rdata_files, function(file) {
+    # Load results
+    load(file)
+    
+    # Extract parameters from filename
+    filename <- basename(file)
+    filename_parts <- strsplit(filename, "_")[[1]]
+    
+    # Verbose parameter extraction
+    safe_extract <- function(pattern) {
+      # Look for exact pattern match followed by a number
+      matches <- which(grepl(paste0("^", pattern, "$"), filename_parts))
+      
+      if (length(matches) > 0) {
+        # Try to extract the next element as value
+        value <- tryCatch(
+          as.numeric(filename_parts[matches + 1]),
+          warning = function(w) NA_real_,
+          error = function(e) NA_real_
+        )
+        
+        if (length(value) > 0 && !is.na(value)) {
+          return(value)
+        }
+      }
+      
+      return(NA_real_)
     }
-  }
+    
+    # Compute metrics
+    mcmc_list <- list(ncls = unlist(results$total_cls), logl = results$loglikelihood)
+    mcmc_matrix <- do.call(cbind, mcmc_list)
+        
+    # Calculate ESS and IAT
+    ess <- ESS(mcmc_matrix)
+    iat <- IAT(mcmc_matrix)
+    
+    # Compute ARI if groundTruth is provided
+    ari <- NA_real_
+    if (!is.null(groundTruth)) {
+      C <- matrix(unlist(lapply(results$c_i, function(x) x + 1)), 
+                  nrow = length(results$total_cls), 
+                  ncol = length(groundTruth), 
+                  byrow = TRUE)
+      VI <- minVI(comp.psm(C))
+      ari <- arandi(VI$cl, groundTruth)
+    }
+    
+    # Create data frame
+    data.frame(
+      filename = filename,
+      L = safe_extract("L"),
+      M = safe_extract("M"),
+      r = safe_extract("r"),
+      t = safe_extract("t"),
+      burnin = safe_extract("BI"),
+      iterations = safe_extract("IT"),
+      ESS_ncls = ess["ncls"],
+      ESS_logl = ess["logl"],
+      IAT = iat,
+      ARI = ari,
+      time = results$time,
+      stringsAsFactors = FALSE
+    )
+  })
   
-  psm = comp.psm(C)
-  ## estimated clustering
-  VI = minVI(psm)
-  
-  # More informative output
-  cat("Cluster Sizes:\n")
-  print(table(VI$cl))
-  
-  cat("\nAdjusted Rand Index:", arandi(VI$cl, groundTruth), "\n")
-  arandi(VI$cl, groundTruth)
-  #png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), 
-   #   width = 800, height = 800)
-  #myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
-  #dev.off()  # Close the device to save the first plot
-  #dev.off()
-  
-  # # Save the second plot
-   png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_gt.png")), 
-       width = 800, height = 800)
-   myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
-   dev.off()  # Close the device to save the second plot
-
-   png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_s.png")), 
-       width = 800, height = 800)
-   myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
-   dev.off()
-  
-   graphics.off()
-  }
+  # Combine results, suppressing row names
+  do.call(rbind, results_list)
 }
 
-load(rdata_files[3])
+# Extract MCMC parameters - IAC, ESS, ARI and time
+mcmc_params <- extract_mcmc_parameters(rdata_files, groundTruth)
+# così ci sarà da fare solo i grafici e non ricalcolare i parametri e anche plottare grafici r/tempo e t/tempo viene più comodo
+save(mcmc_params, file = "../results/mcmc_params.RData") 
 
-myplotpsm_gt_lab(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
-myplotpsm_gt_sep_lab(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
-
-table(groundTruth)
-VI$cl
-
-groundTruth_indices <- which(groundTruth == 7)
-VI_indices <- which(VI$cl == 7)
-
-# Compute the symmetric difference (in one but not both)
-symmetric_difference <- setdiff(union(groundTruth_indices, VI_indices), 
-                                intersect(groundTruth_indices, VI_indices))
-intersection_index <- intersect(groundTruth_indices, VI_indices)
-
-nam[intersection_index]
-nam[VI_indices]
-
-#LapacleDeamon
-
-mcmc_list <- list( ncls = unlist(results$total_cls), logl = results$loglikelihood)
-mcmc_matrix <- do.call(cbind, mcmc_list)
-
-library(LaplacesDemon)
-
-# Check effective sample size (ESS)
-ess <- ESS(mcmc_matrix)
-print(ess)
-
-# Check integrated autocorrelation time (IAT)
-iat <- IAT(mcmc_matrix)
-print(iat)
-
-#=========================================================================================
-# Gibbs sampler HMM
-#=========================================================================================
-source('../code/gibbs_sampler.R', echo=TRUE)
-
-Kstar  = 7
-Lambda = 7
-gam    = AntMAN::AM_find_gamma_Pois(n=nrow(zoo),Lambda=Lambda,Kstar=Kstar)
-prior = AM_prior_K_Pois(n=nrow(zoo), gam, Lambda = Lambda)
-
-u = c(rep(6,12),3,rep(6,3))
-v = c(rep(0.25,12),0.5,rep(0.25,3))
-
-set.seed(57)
-sim_zoo = gibbs_mix_con(G=25000,
-                        burnin = 5000,
-                        data=zoo,
-                        u=u,v=v,
-                        Lambda = Lambda,
-                        gam = gam)
-
-filename <- paste("../results/", 'sim_zoo', ".RData", sep = "")
-save(sim_zoo, file = filename)
-
-# posterior K
-post_k = table(sim_zoo$k[2:25002])/length(2:25002)
-
-
-# Figure S2a
-xl=15
-x11()
-par(mar=c(3.5,2,1,1),mgp=c(2,1,0))
-plot(post_k,lwd = 2,
-     xlab = "k", ylab="", xlim=c(1,xl),axes=F)
-segments(1:xl,rep(0,xl),1:xl,prior,col="red",pch=4)
-axis(1,1:xl,1:xl,cex.axis=1)
-axis(2)
-legend("topleft",legend=c("P(K = k)","P(K = k | data)"),
-       col=c("red",1),lwd=c(1,2))
-
-
-## posterior similarity matrix
-psm = comp.psm(sim_zoo$C[2:25002,])
-
-## estimated clustering
-VI = minVI(psm)
-table(VI$cl)
-arandi(VI$cl,groundTruth)
-
-
-# Figure 2b
-x11()
-par(mar=c(2.5,2.5,1,1),mgp=c(2,1,0))
-myplotpsm(psm,classes=VI$cl,ax=F,ay=F)
-myplotpsm_gt_sep(psm,groundTruth,classes=VI$cl,ax=F,ay=F)
-
-
-
-#=========================================================================================
-# Gibbs sampler HMM common sigma
-#=========================================================================================
-source('../code/gibbs_sampler_common_sigma.R',echo=T)
-
-Kstar  = 7
-Lambda = 7
-gam    = AntMAN::AM_find_gamma_Pois(n=nrow(zoo),Lambda=Lambda,Kstar=Kstar)
-prior = AM_prior_K_Pois(n=nrow(zoo), gam, Lambda = Lambda)
-
-u = c(rep(6,12),3,rep(6,3))
-v = c(rep(0.25,12),0.5,rep(0.25,3))
-
-set.seed(10091995)
-sim_zoo2 = gibbs_ham(G = 10000,
-                     burnin = 2000,
-                     thin = 1,
-                     data = zoo,
-                     eta = c(rep(0.2,30)),
-                     gam =  gam,
-                     Lambda = Lambda,
-                     M.init = 10,
-                     a=1,
-                     b=0.01)
-
-## posterior similarity matrix
-psm2 = comp.psm(sim_zoo2$C)
-
-
-## estimated clustering
-VI2= minVI(psm2)
-table(VI2$cl)
-arandi(VI2$cl,groundTruth) 
-
-#=========================================================================================
-# competitors
-#=========================================================================================
-source('../code/competitors_functions.R')
-
-
-############## HD-vector #################
-HD_rand = NULL
-set.seed(1185)
-for(i in 1:100){
-  HD_output = CategorialCluster(zoo)[[1]]
-  HD_rand[i] = arandi(HD_output,groundTruth)
-}
-
-mean(HD_rand)
-sd(HD_rand)
-
-
-############## K-modes #################
-library(klaR)
-k_mod_rand7 =  NULL
-set.seed(18)
-for(i in 1:100){
-  kmodes_cluster7 = kmodes(zoo,7)$cluster
+# Plot 
+# idx <- 0
+# for (file in rdata_files) {
+#   idx <- idx + 1
+#   # Print file name 
+#   print(file)
+#   l <- L_plurale[idx]
+#   load(file)
   
-  # aRand index
-  k_mod_rand7[i] = arandi(kmodes_cluster7,groundTruth)
-}
+#   # Extract file name without extension
+#   file_base <- tools::file_path_sans_ext(basename(file))
+  
+#   # Create a folder for saving plots if it doesn't exist
+#   output_dir <- paste("../print/plot",file_base, sep = "_")  # Change this to your desired folder
+#   if (!dir.exists(output_dir)) {
+#     dir.create(output_dir)
+  
+#   ### First plot - Posterior distribution of the number of clusters
+#   # Calculation
+#   post_total_cls = table(unlist(results$total_cls))/length(unlist(results$total_cls))
+#   title <- paste("Posterior distribution of the number of clusters ( L =", l, ")")
+#   df <- data.frame(cluster_found = as.numeric(names(post_total_cls)),
+#                    rel_freq = as.numeric(post_total_cls))
+#   # Create plot
+#   p1 <- ggplot(data = df, aes(x = factor(cluster_found), y = rel_freq)) + 
+#     geom_col() + 
+#     labs(
+#       x = "Cluster Found",
+#       y = "Relative Frequency",
+#       title = title
+#     ) +
+#     theme_minimal() +
+#     scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
+#   print(p1)
+#   ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_posterior_distribution.png")), plot = p1, bg = "white")
+  
+#   ### Second plot - Trace of number of clusters
+#   total_cls_df <- data.frame(
+#     Iteration = seq_along(results$total_cls),
+#     NumClusters = unlist(results$total_cls)
+#   )
+  
+#   total_cls_df_long <- total_cls_df %>%
+#     pivot_longer(cols = starts_with("NumClusters"), names_to = "variable", values_to = "value")
+  
+#   p2 <- ggplot(total_cls_df_long, aes(x = Iteration, y = value)) +
+#     geom_line() +
+#     labs(
+#       x = "Iteration", 
+#       y = "Number of clusters", 
+#       title = paste("Trace of Number of Clusters starting from L =", l)
+#     ) +
+#     theme_minimal()
+#   print(p2)
+#   ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_trace_num_clusters.png")), plot = p2, bg = "white")
+  
+#   ### inter plot - Plot the log-likelihood before S&M
+#   log_likelihood_df_bis <- data.frame(
+#     Iteration = seq_along(results$loglikelihood),
+#     LogLikelihood = results$loglikelihood
+#   )
+  
+#   p3_bis <- ggplot(log_likelihood_df_bis, aes(x = Iteration, y = LogLikelihood)) +
+#     geom_line() +
+#     labs(
+#       x = "Iteration",
+#       y = "Log-Likelihood",
+#       title = "Log-Likelihood Trace"
+#     ) +
+#     theme_minimal()
+#   print(p3_bis)
+#   ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_log_likelihood_bfsm.png")), plot = p3_bis, bg = "white")
+  
+#   ### Fourth plot - Posterior similarity matrix
+#   # Vectorized approach to create the matrix
+#   C <- matrix(unlist(lapply(results$c_i, function(x) x + 1)), 
+#               nrow = iterations, 
+#               ncol = nrow(zoo), 
+#               byrow = TRUE)
+  
+#   required_packages <- c("spam", "fields", "viridisLite","RColorBrewer","pheatmap")
+#   for (pkg in required_packages) {
+#     if (!require(pkg, character.only = TRUE)) {
+#       install.packages(pkg)
+#       library(pkg, character.only = TRUE)
+#     }
+#   }
+  
+#   psm = comp.psm(C)
+#   ## estimated clustering
+#   VI = minVI(psm)
+  
+#   # More informative output
+#   cat("Cluster Sizes:\n")
+#   print(table(VI$cl))
+  
+#   cat("\nAdjusted Rand Index:", arandi(VI$cl, groundTruth), "\n")
+#   arandi(VI$cl, groundTruth)
+#   png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), width = 800, height = 800)
+#   myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
+#   dev.off()  # Close the device to save the first plot
+#   dev.off()
+  
+#   # # Save the second plot
+#   #  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_gt.png")), 
+#   #      width = 800, height = 800)
+#   #  myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
+#   #  dev.off()  # Close the device to save the second plot
 
-mean(k_mod_rand7)
-sd(k_mod_rand7)
+#   #  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_s.png")), 
+#   #      width = 800, height = 800)
+#   #  myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
+#   #  dev.off()
+  
+#   # graphics.off()
+#   }
+# }
+
+# load(rdata_files[1])
+
+# myplotpsm_gt_lab(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
+# myplotpsm_gt_sep_lab(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
+
+# table(groundTruth)
+# VI$cl
+
+# groundTruth_indices <- which(groundTruth == 7)
+# VI_indices <- which(VI$cl == 7)
+
+# # Compute the symmetric difference (in one but not both)
+# symmetric_difference <- setdiff(union(groundTruth_indices, VI_indices), 
+#                                 intersect(groundTruth_indices, VI_indices))
+# intersection_index <- intersect(groundTruth_indices, VI_indices)
+
+# nam[intersection_index]
+# nam[VI_indices]
+
+# #LapacleDeamon
+
+# mcmc_list <- list( ncls = unlist(results$total_cls), logl = results$loglikelihood)
+# mcmc_matrix <- do.call(cbind, mcmc_list)
+
+# # Check effective sample size (ESS)
+# ess <- ESS(mcmc_matrix)
+# print(ess)
+
+# # Check integrated autocorrelation time (IAT)
+# iat <- IAT(mcmc_matrix)
+# print(iat)
 
 
 
-####### silhoutte index
-library(cluster)
-dist_mat = matrix(NA,nrow=nrow(zoo),ncol = nrow(zoo))
+# #=========================================================================================
+# # Gibbs sampler HMM
+# #=========================================================================================
+# source('../code/gibbs_sampler.R', echo=TRUE)
 
-for (i in 1:nrow(zoo)){
-  for (j in 1:nrow(zoo)){
-    dist_mat[i,j] = hamming_distance(zoo[i,],zoo[j,])
-  }
-}
+# Kstar  = 7
+# Lambda = 7
+# gam    = AntMAN::AM_find_gamma_Pois(n=nrow(zoo),Lambda=Lambda,Kstar=Kstar)
+# prior = AM_prior_K_Pois(n=nrow(zoo), gam, Lambda = Lambda)
 
-x11()
-par(mfrow=c(1,2))
-sil_vi = silhouette(VI$cl,dmatrix = dist_mat)
-plot(sil_vi, main='HMM')
+# u = c(rep(6,12),3,rep(6,3))
+# v = c(rep(0.25,12),0.5,rep(0.25,3))
 
-sil_hd = silhouette(HD_output,dmatrix = dist_mat)
-plot(sil_hd,main='HD')
+# set.seed(57)
+# sim_zoo = gibbs_mix_con(G=25000,
+#                         burnin = 5000,
+#                         data=zoo,
+#                         u=u,v=v,
+#                         Lambda = Lambda,
+#                         gam = gam)
 
-summary(sil_vi)
-mean(sil_vi[,3])
-var(sil_vi[,3])
-summary(sil_vi[,3])
+# filename <- paste("../results/", 'sim_zoo', ".RData", sep = "")
+# save(sim_zoo, file = filename)
 
-summary(sil_hd)
-mean(sil_hd[,3])
-var(sil_hd[,3])
-summary(sil_hd[,3])
+# # posterior K
+# post_k = table(sim_zoo$k[2:25002])/length(2:25002)
+
+
+# # Figure S2a
+# xl=15
+# x11()
+# par(mar=c(3.5,2,1,1),mgp=c(2,1,0))
+# plot(post_k,lwd = 2,
+#      xlab = "k", ylab="", xlim=c(1,xl),axes=F)
+# segments(1:xl,rep(0,xl),1:xl,prior,col="red",pch=4)
+# axis(1,1:xl,1:xl,cex.axis=1)
+# axis(2)
+# legend("topleft",legend=c("P(K = k)","P(K = k | data)"),
+#        col=c("red",1),lwd=c(1,2))
+
+
+# ## posterior similarity matrix
+# psm = comp.psm(sim_zoo$C[2:25002,])
+
+# ## estimated clustering
+# VI = minVI(psm)
+# table(VI$cl)
+# arandi(VI$cl,groundTruth)
+
+
+# # Figure 2b
+# x11()
+# par(mar=c(2.5,2.5,1,1),mgp=c(2,1,0))
+# myplotpsm(psm,classes=VI$cl,ax=F,ay=F)
+# myplotpsm_gt_sep(psm,groundTruth,classes=VI$cl,ax=F,ay=F)
+
+
+
+# #=========================================================================================
+# # Gibbs sampler HMM common sigma
+# #=========================================================================================
+# source('../code/gibbs_sampler_common_sigma.R',echo=T)
+
+# Kstar  = 7
+# Lambda = 7
+# gam    = AntMAN::AM_find_gamma_Pois(n=nrow(zoo),Lambda=Lambda,Kstar=Kstar)
+# prior = AM_prior_K_Pois(n=nrow(zoo), gam, Lambda = Lambda)
+
+# u = c(rep(6,12),3,rep(6,3))
+# v = c(rep(0.25,12),0.5,rep(0.25,3))
+
+# set.seed(10091995)
+# sim_zoo2 = gibbs_ham(G = 10000,
+#                      burnin = 2000,
+#                      thin = 1,
+#                      data = zoo,
+#                      eta = c(rep(0.2,30)),
+#                      gam =  gam,
+#                      Lambda = Lambda,
+#                      M.init = 10,
+#                      a=1,
+#                      b=0.01)
+
+# ## posterior similarity matrix
+# psm2 = comp.psm(sim_zoo2$C)
+
+
+# ## estimated clustering
+# VI2= minVI(psm2)
+# table(VI2$cl)
+# arandi(VI2$cl,groundTruth) 
+
+# #=========================================================================================
+# # competitors
+# #=========================================================================================
+# source('../code/competitors_functions.R')
+
+
+# ############## HD-vector #################
+# HD_rand = NULL
+# set.seed(1185)
+# for(i in 1:100){
+#   HD_output = CategorialCluster(zoo)[[1]]
+#   HD_rand[i] = arandi(HD_output,groundTruth)
+# }
+
+# mean(HD_rand)
+# sd(HD_rand)
+
+
+# ############## K-modes #################
+# library(klaR)
+# k_mod_rand7 =  NULL
+# set.seed(18)
+# for(i in 1:100){
+#   kmodes_cluster7 = kmodes(zoo,7)$cluster
+  
+#   # aRand index
+#   k_mod_rand7[i] = arandi(kmodes_cluster7,groundTruth)
+# }
+
+# mean(k_mod_rand7)
+# sd(k_mod_rand7)
+
+
+
+# ####### silhoutte index
+# library(cluster)
+# dist_mat = matrix(NA,nrow=nrow(zoo),ncol = nrow(zoo))
+
+# for (i in 1:nrow(zoo)){
+#   for (j in 1:nrow(zoo)){
+#     dist_mat[i,j] = hamming_distance(zoo[i,],zoo[j,])
+#   }
+# }
+
+# x11()
+# par(mfrow=c(1,2))
+# sil_vi = silhouette(VI$cl,dmatrix = dist_mat)
+# plot(sil_vi, main='HMM')
+
+# sil_hd = silhouette(HD_output,dmatrix = dist_mat)
+# plot(sil_hd,main='HD')
+
+# summary(sil_vi)
+# mean(sil_vi[,3])
+# var(sil_vi[,3])
+# summary(sil_vi[,3])
+
+# summary(sil_hd)
+# mean(sil_hd[,3])
+# var(sil_hd[,3])
+# summary(sil_hd[,3])
