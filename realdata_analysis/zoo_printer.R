@@ -5,12 +5,14 @@ library(ggplot2)
 library(tidyverse)
 library(pheatmap)
 library(LaplacesDemon)
+library(vcd)
 rm(list=ls())
 source("../code/old_code/complement_functions.R")
 
 zoo=read.table("../data/zoo.data", h=F, sep=",")
 nam = zoo$V1
 groundTruth = zoo$V18
+
 zoo = as.matrix(zoo[,-c(1,18)]+1)
 zoo[,13] = ifelse(zoo[,13]==3,2,
                   ifelse(zoo[,13]==5,3,
@@ -20,6 +22,31 @@ zoo[,13] = ifelse(zoo[,13]==3,2,
                                               1)))))
 n = nrow(zoo)
 p = ncol(zoo)
+
+# Mosaic plot
+classes = factor(groundTruth,labels=c("mammals", "birds", "reptiles", "fish", 
+                                      "amphibians", "insects", "mollusks"))
+names(groundTruth) <- classes
+
+zoo_subset <- data.frame(ifelse(zoo[,c(2,5,7)] == 1, "no", "yes"))
+colnames(zoo_subset) <- c("Feather","Airborne","Predator")
+
+# Convert to factor if needed
+zoo_subset$Feather <- as.factor(zoo_subset$Feather)
+zoo_subset$Airborne <- as.factor(zoo_subset$Airborne)
+zoo_subset$Predator <- as.factor(zoo_subset$Predator)
+
+# Create a contingency table
+zoo_table <- table(zoo_subset$Feather, zoo_subset$Airborne, zoo_subset$Predator)
+dimnames(zoo_table) <- list(Feather = levels(zoo_subset$Feather), 
+                            Airborne = levels(zoo_subset$Airborne),
+                            Predator = levels(zoo_subset$Predator))
+
+# Generate the mosaic plot
+mosaic(zoo_table, shade = T, legend = F)
+
+##### Parameter for chain 
+
 mm = apply(zoo, 2, function(x){length(table(x))})
 v = c(rep(6,12), 3, rep(6,3))
 w = c(rep(0.25,12), 0.5, rep(0.25,3))
@@ -46,7 +73,7 @@ r_s <- c(5, 10, 15, 20, 30)
 
 t_s <- c(5)
 r_s <- c(5)
-L_plurale <- c(101, 0, 1)
+L_plurale <- c(101)
 
 # Generate all combinations and filter for matches
 combinations <- expand.grid(t = t_s, r = r_s)
@@ -55,7 +82,6 @@ combinations <- expand.grid(t = t_s, r = r_s)
 sam_params <- split(combinations, seq(nrow(combinations)))
 sam_params <- lapply(sam_params, function(x) c(x$t, x$r))
 
-#sam_params <- list(c(5, 5))
 steps <- list(c(1, 1))
 
 Rcpp::sourceCpp("../code/neal8.cpp")
@@ -63,7 +89,7 @@ verbose <- 0
 thinning <- 1
 
 # [IMPORTANT] Gamma test improve loglikelihood and acf
-gamma <- 5
+gamma <- 0.68
 
 for(step in steps){
   n8_step <- step[1]
@@ -367,63 +393,31 @@ for (file in rdata_files) {
   
   cat("\nAdjusted Rand Index:", arandi(VI$cl, groundTruth), "\n")
   arandi(VI$cl, groundTruth)
-  png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), width = 800, height = 800)
-  myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
-  dev.off()  # Close the device to save the first plot
+  #png(filename = file.path(output_dir, paste0(file_base, "matrix.png")), width = 800, height = 800)
+  #myplotpsm(psm, classes=VI$cl, ax=F, ay=F)
+  #dev.off()  # Close the device to save the first plot
 
   # Fifth plot - Auto-correlation plot
   mcmc_list <- list( ncls = unlist(results$total_cls), logl = results$loglikelihood)
   mcmc_matrix <- do.call(cbind, mcmc_list)
-  png(filename = file.path(output_dir, paste0(file_base, "acf.png")), width = 800, height = 800)
-  acf(mcmc_matrix, main = "Auto-correlation plot")
+  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "acf.png")), width = 800, height = 800)
+  acf(mcmc_matrix)
   dev.off()
+  graphics.off()
+  # Save the second plot
+    png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_gt.png")), 
+        width = 800, height = 800)
+    myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
+    dev.off()  # Close the device to save the second plot
+    graphics.off()
+    png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_s.png")), 
+        width = 800, height = 800)
+    myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
+    dev.off()
   
-  # # Save the second plot
-  #  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_gt.png")), 
-  #      width = 800, height = 800)
-  #  myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
-  #  dev.off()  # Close the device to save the second plot
-
-  #  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_s.png")), 
-  #      width = 800, height = 800)
-  #  myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
-  #  dev.off()
-  
-  # graphics.off()
+   graphics.off()
   }
 }
-
-# load(rdata_files[1])
-
-# myplotpsm_gt_lab(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
-# myplotpsm_gt_sep_lab(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
-
-# table(groundTruth)
-# VI$cl
-
-# groundTruth_indices <- which(groundTruth == 7)
-# VI_indices <- which(VI$cl == 7)
-
-# # Compute the symmetric difference (in one but not both)
-# symmetric_difference <- setdiff(union(groundTruth_indices, VI_indices), 
-#                                 intersect(groundTruth_indices, VI_indices))
-# intersection_index <- intersect(groundTruth_indices, VI_indices)
-
-# nam[intersection_index]
-# nam[VI_indices]
-
-# #LapacleDeamon
-
-# mcmc_list <- list( ncls = unlist(results$total_cls), logl = results$loglikelihood)
-# mcmc_matrix <- do.call(cbind, mcmc_list)
-
-# # Check effective sample size (ESS)
-# ess <- ESS(mcmc_matrix)
-# print(ess)
-
-# # Check integrated autocorrelation time (IAT)
-# iat <- IAT(mcmc_matrix)
-# print(iat)
 
 
 
