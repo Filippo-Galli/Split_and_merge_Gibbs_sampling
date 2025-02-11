@@ -224,7 +224,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                 std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
 
             // Sample new cluster assignments for each observation
-            if(neal8){
+            if(neal8 && iter%n8_step_size == 0){
                 for (int index_i = 0; index_i < const_data.n; index_i++) {
                     // Sample new cluster assignment for observation i
                     sample_allocation(index_i, const_data, state, m, latent_center_reuse, latent_sigma_reuse);       
@@ -250,6 +250,13 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                 std::cout << "State after Split and Merge" << std::endl;
                 print_internal_state(state);
             }
+
+            // Resampling parameters
+            if(iter % 1000 == 0)
+                for(size_t i = 0; i < latent_size; ++i) {
+                    latent_center_reuse[i] = std::move(sample_center_1_cluster(const_data.attrisize));
+                    latent_sigma_reuse[i] = std::move(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
+                }
 
             // Calculate likelihood
             double loglikelihood = compute_loglikelihood(state, const_data);
