@@ -5,7 +5,7 @@ library(ggplot2)
 library(tidyverse)
 library(pheatmap)
 library(LaplacesDemon)
-library(vcd)
+#library(vcd)
 rm(list=ls())
 source("../code/old_code/complement_functions.R")
 
@@ -43,7 +43,7 @@ dimnames(zoo_table) <- list(Feather = levels(zoo_subset$Feather),
                             Predator = levels(zoo_subset$Predator))
 
 # Generate the mosaic plot
-mosaic(zoo_table, shade = T, legend = F)
+#mosaic(zoo_table, shade = T, legend = F)
 
 ##### Parameter for chain 
 
@@ -51,7 +51,7 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 v = c(rep(6,12), 3, rep(6,3))
 w = c(rep(0.25,12), 0.5, rep(0.25,3))
 
-n8 <- TRUE
+n8 <- FALSE
 sam <- TRUE
 
 result_name_base = "Test"
@@ -63,16 +63,16 @@ if(sam){
   result_name_base = paste(result_name_base, "SplitMerge", sep = "_")
 }
 
-L_plurale <- c(101, 20, 0, 5, 1) # 5 siccome è log(n)
-iterations <- 20000
-burnin <- 10000
+L_plurale <- c(101, 20, 0, 1, 5) # 5 siccome è log(n)
+iterations <- 3000
+burnin <- 3000
 m <- 3
-t_s <- c(5, 10, 15, 20, 30)
-r_s <- c(5, 10, 15, 20, 30)
+#t_s <- c(5, 10, 15, 20, 30)
+#r_s <- c(5, 10, 15, 20, 30)
 
 
-t_s <- c(5)
-r_s <- c(5)
+t_s <- c(10)
+r_s <- c(10)
 L_plurale <- c(101)
 
 # Generate all combinations and filter for matches
@@ -293,7 +293,8 @@ extract_mcmc_parameters <- function(rdata_files, groundTruth = NULL) {
 # Extract MCMC parameters - IAC, ESS, ARI and time
 mcmc_params <- extract_mcmc_parameters(rdata_files, groundTruth)
 # così ci sarà da fare solo i grafici e non ricalcolare i parametri e anche plottare grafici r/tempo e t/tempo viene più comodo
-save(mcmc_params, file = "../results/mcmc_params.RData") 
+#save(mcmc_params, file = "../results/mcmc_params.RData") 
+print(mcmc_params)
 
 # Plot 
 idx <- 0
@@ -329,7 +330,7 @@ for (file in rdata_files) {
     theme_minimal() +
     scale_x_discrete(drop = FALSE)  # Ensures all cluster_found values are shown
   print(p1)
-  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_posterior_distribution.png")), plot = p1, bg = "white")
+  #ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_posterior_distribution.png")), plot = p1, bg = "white")
   
   ### Second plot - Trace of number of clusters
   total_cls_df <- data.frame(
@@ -349,7 +350,7 @@ for (file in rdata_files) {
     ) +
     theme_minimal()
   print(p2)
-  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_trace_num_clusters.png")), plot = p2, bg = "white")
+  #ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_trace_num_clusters.png")), plot = p2, bg = "white")
   
   ### inter plot - Plot the log-likelihood before S&M
   log_likelihood_df_bis <- data.frame(
@@ -366,7 +367,7 @@ for (file in rdata_files) {
     ) +
     theme_minimal()
   print(p3_bis)
-  ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_log_likelihood_bfsm.png")), plot = p3_bis, bg = "white")
+  #ggsave(filename = file.path(output_dir, paste0(substr(file_base,31,60), "_log_likelihood_bfsm.png")), plot = p3_bis, bg = "white")
   
   ### Fourth plot - Posterior similarity matrix
   # Vectorized approach to create the matrix
@@ -400,22 +401,22 @@ for (file in rdata_files) {
   # Fifth plot - Auto-correlation plot
   mcmc_list <- list( ncls = unlist(results$total_cls), logl = results$loglikelihood)
   mcmc_matrix <- do.call(cbind, mcmc_list)
-  png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "acf.png")), width = 800, height = 800)
+  #png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "acf.png")), width = 800, height = 800)
   acf(mcmc_matrix)
-  dev.off()
-  graphics.off()
+  #dev.off()
+  #graphics.off()
   # Save the second plot
-    png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_gt.png")), 
-        width = 800, height = 800)
-    myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
-    dev.off()  # Close the device to save the second plot
-    graphics.off()
-    png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_s.png")), 
-        width = 800, height = 800)
-    myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
-    dev.off()
-  
-   graphics.off()
+  # png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_gt.png")), 
+  #     width = 800, height = 800)
+  # myplotpsm_gt(psm, groundTruth, classes=VI$cl, ax=F, ay=F)
+  # dev.off()  # Close the device to save the second plot
+  # graphics.off()
+  # png(filename = file.path(output_dir, paste0(substr(file_base,31,60), "m_s.png")), 
+  #     width = 800, height = 800)
+  # myplotpsm_gt_sep(psm, groundTruth, classes=VI$cl, gt = 1, ax=F, ay=F)
+  # dev.off()
+
+  # graphics.off()
   }
 }
 

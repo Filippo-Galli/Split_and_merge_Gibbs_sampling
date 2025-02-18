@@ -294,7 +294,7 @@ int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) 
 }
 
 void clean_var(internal_state & updated_state, 
-              const internal_state & current_state, 
+              const internal_state current_state, 
               const IntegerVector& existing_cls, 
               const IntegerVector& attrisize) {
     /**
@@ -575,6 +575,6 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
         }
 
         // Sample new sigmas
-        sigma[c] = std::move(sample_sigma_1_cluster(const_data.attrisize, new_v, new_w));
+        sigma[c] = sample_sigma_1_cluster(const_data.attrisize, new_v, new_w);
     }
 }

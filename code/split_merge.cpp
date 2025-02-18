@@ -11,7 +11,7 @@ double logdensity_hig(double sigmaj, double v, double w, double m){
      * @param m number of attribute levels
      * @return logdensity of hig(v,w,m)(sigmaj)
      */
-    double K = norm_const(w ,v, m); 
+    double K = norm_const2(w ,v, m); 
     return log(K) - (w + 1)/sigmaj - (v + w)*log(1+exp(-1/sigmaj)*(m-1)) - 2*log(sigmaj);
 
 }
@@ -282,7 +282,10 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
         // Assign new cluster to the first observation
         state_launch_split.c_i[i_1] = state.total_cls; 
         state_launch_split.center.push_back(sample_center_1_cluster(const_data.attrisize));
-        state_launch_split.sigma.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
+        auto temp = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+        //Rcpp::Rcout << "temp: " << temp << std::endl;
+        state_launch_split.sigma.push_back(temp);
+        //state_launch_split.sigma.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
         state_launch_split.total_cls++; // increase the number of clusters
     } 
 
@@ -294,6 +297,7 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
         split_restricted_gibbs_sampler(S, state_launch_split, i_1, i_2, const_data);
     }
 
+    //print_internal_state(state_launch_split);
     validate_state(state_launch_split, "split_launch_state");
 
     // // Initialize split launch state
@@ -408,6 +412,7 @@ internal_state merge_launch_state(const std::vector<int> & S,
     }
 
     validate_state(state_launch_merge, "merge_launch_state");
+    //print_internal_state(state_launch_merge);
 
     return state_launch_merge;
 }
@@ -603,11 +608,17 @@ void split_and_merge(internal_state & state,
     
     if(state.c_i[i_1] == state.c_i[i_2]) {
         // Split case
+        //std::cout << "Split case" << std::endl;
+        //print_internal_state(split_launch);
+        
         state_star = split_launch;
         split_restricted_gibbs_sampler(S, state_star, i_1, i_2, const_data);
         acpt_ratio = split_acc_prob(state_star, state, split_launch, merge_launch, S, i_1, i_2, const_data);
     } else {
         // Merge case
+        //std::cout << "Merge case" << std::endl;
+        //print_internal_state(merge_launch);
+        
         state_star = merge_launch;
         update_centers(state_star, const_data, {state_star.c_i[i_2]});
         update_sigma(state_star.sigma, state_star.center, state_star.c_i, 
@@ -616,7 +627,8 @@ void split_and_merge(internal_state & state,
                                   S, i_1, i_2, const_data);
     }
 
-    validate_state(state_star, "split_and_merge - state_star");
+    //print_internal_state(state_star);
+    //validate_state(state_star, "split_and_merge - state_star");
     
     // Accept/reject step
     if(log(R::runif(0,1)) < acpt_ratio) {

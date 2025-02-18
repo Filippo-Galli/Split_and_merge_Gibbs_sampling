@@ -72,7 +72,7 @@ IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int 
 int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls);
 
 void clean_var(internal_state & updated_state, 
-              const internal_state & current_state, 
+              const internal_state current_state, 
               const IntegerVector& existing_cls, 
               const IntegerVector& attrisize);
 
