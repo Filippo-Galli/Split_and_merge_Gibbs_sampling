@@ -38,7 +38,6 @@ for(i in 1:length(classes)){
 dati.m = apply(dati.m, 2,as.numeric)
 to_omit=which(nclas<m)
 data.clean=as.data.frame(dati.m[,-to_omit])
-data.clean<-data.clean[1:101,1:16]
 
 #gamma = AntMAN::AM_find_gamma_Pois(n=nrow(data.clean),Lambda = 3,Kstar = 3) 
 gamma = 0.1514657
@@ -83,7 +82,6 @@ burnin <- 10000
 maux <- 3
 t <- 60
 r <- 60
-#data.clean<-data.clean[1:101,1:16]
 data.clean<-as.matrix(data.clean)
 
 for(l in L_plurale){
