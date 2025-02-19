@@ -4,7 +4,7 @@
 #include <RcppGSL.h>
 #include <gsl/gsl_sf_hyperg.h>
 
-double norm_const2(const double d, const double c, const double m, const bool log_scale = false);
+double norm_const2(const double d, const double c, const double m);
 double hyperg2(double a, double b, double c, double x);
 double lF_conK2(const double u, const double d, const double c, const double m, const double K);
 double bisec_hyper2(const double d, const double c, const double m, const double Omega);

@@ -32,8 +32,8 @@
 *.app
 
 # R
-.RData
-.Rhistory
+*.RData
+*.Rhistory
 
 # Useless data 
 ./plot/*

@@ -31,14 +31,14 @@ namespace debug {
     debug::print(level, __func__, __LINE__, message, ##__VA_ARGS__)
 
 // Data structures
-alignas(64) struct internal_state {
+struct alignas(64) internal_state {
     IntegerVector c_i;
     List center;
     List sigma;
     int total_cls = 0;
 };
 
-alignas(64) struct aux_data {
+struct alignas(64) aux_data {
     NumericMatrix data;
     int n;
     IntegerVector attrisize;

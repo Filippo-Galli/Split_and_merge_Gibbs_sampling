@@ -51,7 +51,7 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 v = c(rep(6,12), 3, rep(6,3))
 w = c(rep(0.25,12), 0.5, rep(0.25,3))
 
-n8 <- FALSE
+n8 <- TRUE
 sam <- TRUE
 
 result_name_base = "Test"
@@ -64,16 +64,15 @@ if(sam){
 }
 
 L_plurale <- c(101, 20, 0, 1, 5) # 5 siccome è log(n)
-iterations <- 3000
+iterations <- 8000
 burnin <- 3000
 m <- 3
 #t_s <- c(5, 10, 15, 20, 30)
 #r_s <- c(5, 10, 15, 20, 30)
 
-
 t_s <- c(10)
 r_s <- c(10)
-L_plurale <- c(101)
+#L_plurale <- c(5)
 
 # Generate all combinations and filter for matches
 combinations <- expand.grid(t = t_s, r = r_s)
@@ -82,7 +81,7 @@ combinations <- expand.grid(t = t_s, r = r_s)
 sam_params <- split(combinations, seq(nrow(combinations)))
 sam_params <- lapply(sam_params, function(x) c(x$t, x$r))
 
-steps <- list(c(1, 1))
+steps <- list(c(10, 1))
 
 Rcpp::sourceCpp("../code/neal8.cpp")
 verbose <- 0
@@ -296,6 +295,8 @@ mcmc_params <- extract_mcmc_parameters(rdata_files, groundTruth)
 #save(mcmc_params, file = "../results/mcmc_params.RData") 
 print(mcmc_params)
 
+dev.off()
+graphics.off()
 # Plot 
 idx <- 0
 for (file in rdata_files) {

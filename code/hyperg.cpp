@@ -8,9 +8,15 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-double norm_const2(const double d, const double c, const double m, const bool log_scale)
-{
-
+double norm_const2(const double d, const double c, const double m){
+  /**
+   * @brief Compute the normalizing constant of the hypergeometric distribution
+   * @param d First parameter of the hypergeometric distribution
+   * @param c Second parameter of the hypergeometric distribution
+   * @param m Third parameter of the hypergeometric distribution
+   * @return Logarithm of the normalizing constant of the hypergeometric distribution
+   */
+  
   double z = (m - 1) / m;
   double alpha = d + c;
   double beta = 1;
@@ -21,24 +27,26 @@ double norm_const2(const double d, const double c, const double m, const bool lo
 
   int stat = gsl_sf_hyperg_2F1_e(alpha, beta, gamma, z, &out);
 
-  // Rcpp::Rcout<<"Valore della hyper "<<out.val<<"\n";
-
-  if (stat != GSL_SUCCESS)
-  {
-    // Rcpp::Rcout<<"Sono qui\n";
-    return R_NaN;
+  if (stat != GSL_SUCCESS) {
+    // Instead of throwing, return appropriate values for different cases
+    if (stat == GSL_EMAXITER) {
+        return -INFINITY;
+    }
+    if (stat == GSL_EOVRFLW) {
+        return INFINITY;
+    }
+    // For other GSL errors, throw with more specific information
+    std::string error_msg = "GSL hypergeometric error: " + std::string(gsl_strerror(stat));
+    throw std::runtime_error(error_msg);
   }
 
-  if (log_scale)
-  {
-    return std::log(d + 1) + (d + c) * std::log(m) - std::log(out.val);
-    Rcpp::Rcout << "Sono in log_scale\n";
+  if(!std::isfinite(out.val) || out.val == 0){
+    throw std::runtime_error("norm_const2 - hypergeometric diverging with infinity ");
   }
-  else
-  {
-    return std::exp(std::log(d + 1) + (d + c) * std::log(m) - std::log(out.val));
-    Rcpp::Rcout << "Non sono in log_scale\n";
-  }
+
+  //Rcpp::Rcout << " out.val = " << out.val << std::endl;
+
+  return std::log(d + 1) + (d + c) * std::log(m) - std::log(out.val);
 }
 
 // [[Rcpp::export]]
@@ -67,7 +75,7 @@ Rcpp::NumericVector dhyper_raf2(const Rcpp::NumericVector u, const double d, con
   int n = u.length();
   Rcpp::NumericVector out(n);
 
-  double lK = norm_const2(d, c, m, true);
+  double lK = norm_const2(d, c, m);
 
   for (int i = 0; i < n; i++)
   {
@@ -147,7 +155,7 @@ bisec_hyper2(const double d, const double c, const double m, const double Omega)
 {
 
   double centro = 0.5;
-  double lK = norm_const2(d, c, m, true);
+  double lK = norm_const2(d, c, m);
   double app = lF_conK2(centro, d, c, m, lK) - log(Omega);
   // Rcpp::Rcout<<"app="<<app<<"\n";
 
@@ -246,7 +254,7 @@ Rcpp::NumericVector dhyper_sig_raf2(const Rcpp::NumericVector x, const double d,
   int n = x.length();
   Rcpp::NumericVector out(n);
 
-  double lK = norm_const2(d, c, m, true);
+  double lK = norm_const2(d, c, m);
 
   for (int i = 0; i < n; i++)
   {
