@@ -145,7 +145,7 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
     return logpgs;
 }
 
-void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state & state, int i_1, int i_2, const aux_data & const_data) {
+void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state & state, int i_1, int i_2, const aux_data & const_data, int t) {
     /**
      * @brief Restricted Gibbs Sampler between the cluster of two observations
      * @param state Internal state of the MCMC algorithm
@@ -167,34 +167,44 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
     int cls;
     int n_s_cls;
 
-    for (int s : S) {
-        // extract datum at s
-        const NumericVector & y_s = const_data.data(s, _);
+    for(int iter = 0; iter < t; ++iter) {
+        /*
+        * ------------------------ Allocation Sampling ------------------------
+        */
+        for (int s : S) {
+            // extract datum at s
+            const NumericVector & y_s = const_data.data(s, _);
 
-        // evaluate probabilities
-        for (int k = 0; k < 2; k++) {
-            double Hamming = 0;
+            // evaluate probabilities
+            for (int k = 0; k < 2; k++) {
+                double Hamming = 0;
 
-            for (int j = 0; j < y_s.length(); j++) {
-                Hamming += dhamming_pippo(y_s[j], as<NumericVector>(center_list[k])[j], as<NumericVector>(sigma_list[k])[j], const_data.attrisize[j]);
+                for (int j = 0; j < y_s.length(); j++) {
+                    Hamming += dhamming_pippo(y_s[j], as<NumericVector>(center_list[k])[j], as<NumericVector>(sigma_list[k])[j], const_data.attrisize[j]);
+                }
+
+                // Count instances in the cluster excluding the current point s
+                n_s_cls = sum(state.c_i == cls) - (state.c_i[s] == cls);  
+
+                probs[k] =  log(n_s_cls) + Hamming;
             }
 
-            // Count instances in the cluster excluding the current point s
-            n_s_cls = sum(state.c_i == cls) - (state.c_i[s] == cls);  
-
-            probs[k] =  log(n_s_cls) + Hamming;
+            // Normalize probabilities
+            probs = exp(probs - max(probs));
+            probs = probs / sum(probs);
+        
+            // Sample new cluster assignment between the two clusters of i_1 and i_2
+            state.c_i[s] = sample(IntegerVector::create(c_i_1, c_i_2), 1, true, probs)[0];
         }
 
-        // Normalize probabilities
-        probs = exp(probs - max(probs));
-        probs = probs / sum(probs);
-       
-        // Sample new cluster assignment between the two clusters of i_1 and i_2
-        state.c_i[s] = sample(IntegerVector::create(c_i_1, c_i_2), 1, true, probs)[0];
-    }
+        /*
+        * ------------------------ Update Centers ------------------------
+        */
 
-    update_centers(state, const_data, {c_i_1, c_i_2});
-    update_sigma(state.sigma, state.center, state.c_i, const_data, {c_i_1, c_i_2});
+        update_centers(state, const_data, {c_i_1, c_i_2});
+        update_sigma(state.sigma, state.center, state.c_i, const_data, {c_i_1, c_i_2});
+        validate_state(state, "split_restricted_gibbs_sampler - iteration " + std::to_string(iter));
+    }
 }
 
 void select_observations(const internal_state & state, int & i_1, int & i_2,std::vector<int> & S) {
@@ -262,15 +272,22 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
         state_launch_split.center.push_back(sample_center_1_cluster(const_data.attrisize));
         state_launch_split.sigma.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
         state_launch_split.total_cls++; // increase the number of clusters
-    } 
+    }
+    else{
+        // sample new parameters for the clusters of i_1
+        state_launch_split.center[state.c_i[i_1]] = sample_center_1_cluster(const_data.attrisize);
+        state_launch_split.sigma[state.c_i[i_1]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+    }
+
+    // Sample new parameters for the clusters of i_2
+    state_launch_split.center[state.c_i[i_2]] = sample_center_1_cluster(const_data.attrisize);
+    state_launch_split.sigma[state.c_i[i_2]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
 
     // Random allocation of S between clusters
     state_launch_split.c_i[S_indexes] = sample(IntegerVector::create(state_launch_split.c_i[i_1], state_launch_split.c_i[i_2]), S_indexes.length(), true);
 
     // Intermediate Gibbs sampling
-    for(int iter = 0; iter < t; ++iter) {
-        split_restricted_gibbs_sampler(S, state_launch_split, i_1, i_2, const_data);
-    }
+    split_restricted_gibbs_sampler(S, state_launch_split, i_1, i_2, const_data, t);
 
     validate_state(state_launch_split, "split_launch_state");
 

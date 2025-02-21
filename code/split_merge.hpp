@@ -10,7 +10,7 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
 
 double logprobgs_c_i(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, const int i_1, const int i_2);
 
-void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state & state, int i_1, int i_2, const aux_data & const_data);
+void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state & state, int i_1, int i_2, const aux_data & const_data, int t = 1);
 
 void select_observations(const internal_state & state, int & i_1, int & i_2, std::vector<int> & S);
 
@@ -19,8 +19,6 @@ internal_state split_launch_state(const std::vector<int> & S, const internal_sta
 internal_state merge_launch_state(const std::vector<int> & S, const internal_state & state, int i_1, int i_2, int r, const aux_data & const_data);
 
 double loglikelihood_hamming(const internal_state & state, int c, const aux_data & const_data);
-
-int cls_elem(const internal_state & state, int c);
 
 double priors(const internal_state & state, int c, const aux_data & const_data);
 
