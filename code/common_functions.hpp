@@ -36,6 +36,16 @@ struct alignas(64) internal_state {
     List center;
     List sigma;
     int total_cls = 0;
+
+    internal_state& operator=(const internal_state& other) {
+        if (this != &other) {  // Self-assignment protection
+            c_i = clone(other.c_i);
+            center = clone(other.center);
+            sigma = clone(other.sigma);
+            total_cls = other.total_cls;
+        }
+        return *this;  // Enable chain assignments
+    }
 };
 
 struct alignas(64) aux_data {
