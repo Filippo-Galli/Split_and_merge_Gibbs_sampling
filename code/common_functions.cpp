@@ -145,25 +145,25 @@ void print_progress_bar(int progress, int total, const std::chrono::steady_clock
 }
 
 void validate_state(const internal_state& state, const std::string& message) {
-    if(debug_var){
-        // Ensure consistency between c_i and total_cls
-        IntegerVector unique_cls = unique_classes(state.c_i);
-        if (unique_cls.length() != state.total_cls) {
-            std::string error_message = "State validation failed: inconsistent cluster count from " + message;
-	    print_internal_state(state, 1);
-	    Rcpp::Rcout << "Unique classes: " << unique_cls << std::endl;
-            Rcpp::stop(error_message);
-        }
-        
-        // Validate center and sigma lists
-        if (state.center.length() != state.total_cls || 
-            state.sigma.length() != state.total_cls) {
-            std::string error_message = "State validation failed: inconsistent parameter lengths from " + message;
-	    print_internal_state(state, -1);
-	    Rcpp::Rcout << "Unique classes: " << unique_cls << std::endl;
-            Rcpp::stop(error_message);
-        }
+    
+    // Ensure consistency between c_i and total_cls
+    IntegerVector unique_cls = unique_classes(state.c_i);
+    if (unique_cls.length() != state.total_cls) {
+        std::string error_message = "State validation failed: inconsistent cluster count from " + message;
+    print_internal_state(state, 1);
+    Rcpp::Rcout << "Unique classes: " << unique_cls << std::endl;
+        Rcpp::stop(error_message);
     }
+    
+    // Validate center and sigma lists
+    if (state.center.length() != state.total_cls || 
+        state.sigma.length() != state.total_cls) {
+        std::string error_message = "State validation failed: inconsistent parameter lengths from " + message;
+    print_internal_state(state, -1);
+    Rcpp::Rcout << "Unique classes: " << unique_cls << std::endl;
+        Rcpp::stop(error_message);
+    }
+    
 }
 
 // Initialization functions
@@ -340,6 +340,8 @@ void clean_var(internal_state & updated_state,
             updated_state.c_i[i] = it->second;
         }
     }
+
+    validate_state(updated_state, "clean_var");
 }
 
 double dhamming_pippo(int x, int c, double s, int attrisize) {

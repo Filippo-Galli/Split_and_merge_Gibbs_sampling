@@ -38,7 +38,6 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
     /*
     ------------------------------ Center probability ------------------------------
     */
-
     double log_center_prob = 0;
 
     // Prior probability of centers
@@ -156,20 +155,15 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
      * @param const_data Auxiliary data for the MCMC algorithm
      */
 
-    // Extract cluster of the first observation
+    // Extract cluster parameters
     int c_i_1 = state.c_i[i_1];
-    const NumericVector & center1 = as<NumericVector>(state.center[c_i_1]);
-    const NumericVector & sigma1 = as<NumericVector>(state.sigma[c_i_1]);
-
-    // Extract cluster of the second observation
     int c_i_2 = state.c_i[i_2];
-    const NumericVector & center2 = as<NumericVector>(state.center[c_i_2]);
-    const NumericVector & sigma2 = as<NumericVector>(state.sigma[c_i_2]);
+    const List center_list = List::create(state.center[c_i_1], state.center[c_i_2]);
+    const List sigma_list = List::create(state.sigma[c_i_1], state.sigma[c_i_2]);
+    const IntegerVector cluster_indices = IntegerVector::create(c_i_1, c_i_2);
 
     // support variables
     NumericVector probs(2);
-    NumericVector center(const_data.attrisize.length());
-    NumericVector sigma(const_data.attrisize.length());
     int cls;
     int n_s_cls;
 
@@ -179,22 +173,10 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
 
         // evaluate probabilities
         for (int k = 0; k < 2; k++) {
-            // select parameter values of the corresponding cluster
-            if(k == 0){
-                center = center1;
-                sigma = sigma1;
-                cls = c_i_1;
-            }
-            else{
-                center = center2;
-                sigma = sigma2;
-                cls = c_i_2;
-            }
-
             double Hamming = 0;
 
             for (int j = 0; j < y_s.length(); j++) {
-                Hamming += dhamming_pippo(y_s[j], center[j], sigma[j], const_data.attrisize[j]);
+                Hamming += dhamming_pippo(y_s[j], as<NumericVector>(center_list[k])[j], as<NumericVector>(sigma_list[k])[j], const_data.attrisize[j]);
             }
 
             // Count instances in the cluster excluding the current point s
@@ -278,10 +260,7 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
         // Assign new cluster to the first observation
         state_launch_split.c_i[i_1] = state.total_cls; 
         state_launch_split.center.push_back(sample_center_1_cluster(const_data.attrisize));
-        auto temp = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
-        //Rcpp::Rcout << "temp: " << temp << std::endl;
-        state_launch_split.sigma.push_back(temp);
-        //state_launch_split.sigma.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
+        state_launch_split.sigma.push_back(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
         state_launch_split.total_cls++; // increase the number of clusters
     } 
 
@@ -293,38 +272,7 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
         split_restricted_gibbs_sampler(S, state_launch_split, i_1, i_2, const_data);
     }
 
-    //print_internal_state(state_launch_split);
     validate_state(state_launch_split, "split_launch_state");
-
-    // // Initialize split launch state
-    // IntegerVector c_L_split = clone(state.c_i);
-    // List center_L_split = clone(state.center);
-    // List sigma_L_split = clone(state.sigma);
-
-    // if(state.c_i[i_1] == state.c_i[i_2]) {
-    //     c_L_split[i_1] = unique_classes(state.c_i).length();
-    //     center_L_split.push_back(0);
-    //     sigma_L_split.push_back(0);
-    // }
-
-    // // Random allocation of S between clusters
-    // IntegerVector S_indexes = wrap(S);
-    // c_L_split[S_indexes] = sample(IntegerVector::create(c_L_split[i_1], c_L_split[i_2]), S_indexes.length(), true);
-    // // Sample new parameters
-    // center_L_split[c_L_split[i_1]] = sample_center_1_cluster(const_data.attrisize);
-    // sigma_L_split[c_L_split[i_1]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
-    // center_L_split[c_L_split[i_2]] = sample_center_1_cluster(const_data.attrisize);
-    // sigma_L_split[c_L_split[i_2]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
-
-    // internal_state state_launch_split = {c_L_split, center_L_split, sigma_L_split, static_cast<int>(unique_classes(c_L_split).length())};
-
-    // // Da controllare che funzioni siccome usa lo stesso stato come input e output - [WARNING] perchè la facciamo? Nessun cluster può essere vuoto
-    // clean_var(state_launch_split, state_launch_split, unique_classes(state_launch_split.c_i), const_data.attrisize);
-
-    // // Intermediate Gibbs sampling
-    // for(int iter = 0; iter < t; ++iter) {
-    //     split_restricted_gibbs_sampler(S, state_launch_split, i_1, i_2, const_data);
-    // }
 
     return state_launch_split;
 }
@@ -343,44 +291,6 @@ internal_state merge_launch_state(const std::vector<int> & S,
      * @param const_data Auxiliary data for the MCMC algorithm
      * @return Internal state of the MCMC algorithm
      */
-
-    // internal_state state_launch_merge = {clone(state.c_i), clone(state.center), clone(state.sigma), state.total_cls};
-
-    // if(state.c_i[i_1] != state.c_i[i_2]) {
-    //     // change allocation from c_i[i_1] to c_i[i_2]
-    //     IntegerVector S_indexes = wrap(S);
-    //     state_launch_merge.c_i[S_indexes] = state.c_i[i_2];
-
-    //     // To avoid empty clusters [clean_var()]
-    //     // move the last cluster to the cluster of i_1
-    //     state_launch_merge.center[state.c_i[i_1]] = state.center[state.total_cls - 1];
-    //     state_launch_merge.sigma[state.c_i[i_1]] = state.sigma[state.total_cls - 1];
-
-    //     // remove the last cluster
-    //     state_launch_merge.center.erase(state.total_cls - 1);
-    //     state_launch_merge.sigma.erase(state.total_cls - 1);
-
-    //     // correct the indexes of the last cluster
-    //     for(int i = 0; i < state.c_i.length(); ++i) {
-    //         if(state.c_i[i] == state.total_cls - 1) {
-    //             state_launch_merge.c_i[i] = state.c_i[i_1];
-    //         }
-    //     }
-
-    //     // decrease the number of clusters
-    //     state_launch_merge.total_cls--;
-
-    //     // Move allocation of i_1 to the allocation of i_2
-    //     state_launch_merge.c_i[i_1] = state.c_i[i_2];
-    // }
-    // validate_state(state_launch_merge, "merge_launch_state pre update");
-
-    // // Update parameters r times
-    // for(int iter = 0; iter < r; ++iter) {
-    //     update_centers(state_launch_merge, const_data, {state_launch_merge.c_i[i_2]});
-    //     update_sigma(state_launch_merge.sigma, state_launch_merge.center, state_launch_merge.c_i, const_data, {state_launch_merge.c_i[i_2]});
-    // }
-
 
     // Initialize merge launch state
     IntegerVector c_L_merge = clone(state.c_i);
@@ -408,7 +318,6 @@ internal_state merge_launch_state(const std::vector<int> & S,
     }
 
     validate_state(state_launch_merge, "merge_launch_state");
-    //print_internal_state(state_launch_merge);
 
     return state_launch_merge;
 }
