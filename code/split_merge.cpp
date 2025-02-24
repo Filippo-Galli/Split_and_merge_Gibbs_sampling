@@ -55,18 +55,15 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
     */
 
     double log_sigma_prob = 0;
-    // Calculate probability of sigma parameters
-    const NumericVector& sigma_star = gamma_star.sigma[c];
-    const NumericVector& center_star = gamma_star.center[c];
     
     // Log-probability of sigma parameters
     for(int j = 0; j < const_data.attrisize.length(); j++) {
         const NumericVector& col = data_tmp(_, j);
-        double sumdelta = sum(col == center_star[j]);
+        double sumdelta = sum(col == as<NumericVector>(gamma_star.center[c])[j]);
         double new_v = const_data.v[j] + sumdelta;
         double new_w = const_data.w[j] + nm - sumdelta;
         
-        log_sigma_prob += logdensity_hig(sigma_star[j], new_v, new_w, const_data.attrisize[j]);
+        log_sigma_prob += logdensity_hig(as<NumericVector>(gamma_star.sigma[c])[j], new_v, new_w, const_data.attrisize[j]);
     }
 
     return log_center_prob + log_sigma_prob;
@@ -116,10 +113,11 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
             // Count instances in the cluster excluding the current point s
             n_s_cls = sum(gamma.c_i == cls) - (gamma.c_i[s] == cls); //aux_state.c_i[s] == cls è false questo è uguale a 0
             
-            probs[k] = n_s_cls * std::exp(Hamming);
+            probs[k] = log(n_s_cls) + Hamming;
         }
 
         // Normalize probabilities
+        probs = exp(probs - max(probs));
         probs = probs / sum(probs);
 
         int currrent_c = gamma_star.c_i[s] == c_i_1 ? 0 : 1;
@@ -144,9 +142,6 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
     // Extract cluster parameters
     int c_i_1 = state.c_i[i_1];
     int c_i_2 = state.c_i[i_2];
-    const List center_list = List::create(state.center[c_i_1], state.center[c_i_2]);
-    const List sigma_list = List::create(state.sigma[c_i_1], state.sigma[c_i_2]);
-    const IntegerVector cluster_indices = IntegerVector::create(c_i_1, c_i_2);
 
     // support variables
     NumericVector probs(2);
@@ -165,8 +160,14 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
             for (int k = 0; k < 2; k++) {
                 double Hamming = 0;
 
+                if(k == 0)
+                    cls = c_i_1;
+                else
+                    cls = c_i_2;
+
                 for (int j = 0; j < y_s.length(); j++) {
-                    Hamming += dhamming_pippo(y_s[j], as<NumericVector>(center_list[k])[j], as<NumericVector>(sigma_list[k])[j], const_data.attrisize[j]);
+                    Hamming += dhamming_pippo(y_s[j], as<NumericVector>(state.center[cls])[j], 
+                                as<NumericVector>(state.sigma[cls])[j], const_data.attrisize[j]);
                 }
 
                 // Count instances in the cluster excluding the current point s
