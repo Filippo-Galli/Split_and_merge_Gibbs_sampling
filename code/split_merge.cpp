@@ -88,18 +88,10 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
 
     // Extract cluster of the first observation
     int c_i_1 = gamma.c_i[i_1];
-    const NumericVector& center1 = as<NumericVector>(gamma_star.center[c_i_1]);
-    const NumericVector& sigma1 = as<NumericVector>(gamma_star.sigma[c_i_1]);
-
-    // Extract cluster of the second observation
     int c_i_2 = gamma.c_i[i_2];
-    const NumericVector& center2 = as<NumericVector>(gamma_star.center[c_i_2]);
-    const NumericVector& sigma2 = as<NumericVector>(gamma_star.sigma[c_i_2]);
 
     // support variable
     NumericVector probs(2);
-    NumericVector center(const_data.attrisize.length());
-    NumericVector sigma(const_data.attrisize.length());
     int cls;
     int n_s_cls;
 
@@ -109,28 +101,22 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
 
         // evaluate probabilities
         for (int k = 0; k < 2; k++) {
-            // select parameter values of the corresponding cluster
-            if(k == 0){
-                center = center1;
-                sigma = sigma1;
-                cls = c_i_1;
-            }
-            else{
-                center = center2;
-                sigma = sigma2;
-                cls = c_i_2;
-            }
-
             double Hamming = 0;
+            
+            if(k == 0)
+                cls = c_i_1;
+            else
+                cls = c_i_2;
 
             for (int j = 0; j < y_s.length(); j++) {
-                Hamming += dhamming_pippo(y_s[j], center[j], sigma[j], const_data.attrisize[j]);
+                Hamming += dhamming_pippo(y_s[j], as<NumericVector>(gamma_star.center[cls])[j], 
+                            as<NumericVector>(gamma_star.sigma[cls])[j], const_data.attrisize[j]);
             }
 
             // Count instances in the cluster excluding the current point s
             n_s_cls = sum(gamma.c_i == cls) - (gamma.c_i[s] == cls); //aux_state.c_i[s] == cls è false questo è uguale a 0
             
-            probs[k] =  n_s_cls * std::exp(Hamming);
+            probs[k] = n_s_cls * std::exp(Hamming);
         }
 
         // Normalize probabilities

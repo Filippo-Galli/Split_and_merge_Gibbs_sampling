@@ -81,7 +81,11 @@ combinations <- expand.grid(t = t_s, r = r_s)
 sam_params <- split(combinations, seq(nrow(combinations)))
 sam_params <- lapply(sam_params, function(x) c(x$t, x$r))
 
-steps <- list(c(1, 1), c(2, 1), c(1, 2))
+if(n8 == TRUE && sam == TRUE){
+  steps <- list(c(1, 1), c(2, 1), c(1, 2))
+} else{
+  steps <- list(c(1, 1))
+}
 
 Rcpp::sourceCpp("../code/neal8.cpp")
 verbose <- 0
