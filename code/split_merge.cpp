@@ -487,7 +487,7 @@ double merge_acc_prob(const internal_state & state_merge,
     return log_ratio;
 }
 
-void split_and_merge(internal_state & state,
+int split_and_merge(internal_state & state,
                     const aux_data & const_data,
                     int t, int r) {
     /**
@@ -532,5 +532,7 @@ void split_and_merge(internal_state & state,
     if(log(R::runif(0,1)) < acpt_ratio) {
         clean_var(state, state_star, unique_classes(state_star.c_i), const_data.attrisize);
         validate_state(state, "split_and_merge - state");
+        return 1;
     }
+    return 0;
 }

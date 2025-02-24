@@ -38,7 +38,7 @@ double merge_acc_prob(const internal_state & state_merge,
                      int i_1, int i_2,
                      const aux_data & const_data);
 
-void split_and_merge(internal_state & state,
+int split_and_merge(internal_state & state,
                     const aux_data & const_data,
                     int t, int r);
 

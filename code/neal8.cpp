@@ -199,7 +199,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                                 Named("sigmas") = List(iterations), 
                                 Named("loglikelihood") = NumericVector(iterations), 
                                 Named("final_ass") = IntegerVector(data.nrow()),
-                                Named("time") = IntegerVector(1)                           
+                                Named("time") = IntegerVector(1),
+                                Named("accepted") = IntegerVector(iterations)                          
                                 );
 
     Rcpp::Rcout << "Sampling all the latent cluster in advance... " << std::endl; 
@@ -209,6 +210,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     latent_center_reuse.reserve(latent_size);
     std::vector<NumericVector> latent_sigma_reuse;
     latent_sigma_reuse.reserve(latent_size);
+    int accepted = 0;
 
     for(size_t i = 0; i < latent_size; ++i) {
         latent_center_reuse.emplace_back(sample_center_1_cluster(const_data.attrisize));
@@ -220,6 +222,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
     try{
         for (int iter = 0; iter < (iterations + burnin)*thinning; ++iter) {
+            accepted = 0;
+
             if(verbose != 0)
                 std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
 
@@ -242,9 +246,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
             // Split and merge step
             if(split_merge && iter%sam_step_size==0){
-                split_and_merge(state, const_data, t, r);
+                accepted = split_and_merge(state, const_data, t, r);
             }
-            //std::cout << "DEBUG - passed s&m" << std::endl;
 
             if(verbose == 2){
                 std::cout << "State after Split and Merge" << std::endl;
@@ -252,11 +255,11 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             }
 
             // Resampling parameters
-            if(iter % 1000 == 0)
-                for(size_t i = 0; i < latent_size; ++i) {
-                    latent_center_reuse[i] = std::move(sample_center_1_cluster(const_data.attrisize));
-                    latent_sigma_reuse[i] = std::move(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
-                }
+            // if(iter % 1000 == 0)
+            //     for(size_t i = 0; i < latent_size; ++i) {
+            //         latent_center_reuse[i] = std::move(sample_center_1_cluster(const_data.attrisize));
+            //         latent_sigma_reuse[i] = std::move(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
+            //     }
 
             // Calculate likelihood
             double loglikelihood = compute_loglikelihood(state, const_data);
@@ -271,7 +274,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                 as<List>(results["c_i"])[(iter)/thinning - burnin] = clone(state.c_i);
                 as<List>(results["centers"])[(iter)/thinning - burnin] = clone(state.center);
                 as<List>(results["sigmas"])[(iter)/thinning - burnin] = clone(state.sigma);
-                as<NumericVector>(results["loglikelihood"])[(iter)/thinning - burnin] = loglikelihood;                
+                as<NumericVector>(results["loglikelihood"])[(iter)/thinning - burnin] = loglikelihood;
+                as<IntegerVector>(results["accepted"])[(iter)/thinning - burnin] = accepted;              
             }
         }
     } catch (const std::exception& e) {
