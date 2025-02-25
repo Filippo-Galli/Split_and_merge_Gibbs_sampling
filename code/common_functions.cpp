@@ -522,7 +522,7 @@ void update_centers(internal_state& state, const aux_data& const_data, std::vect
     }
 }
 
-void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, const aux_data & const_data, std::vector<int> clusters_to_update) {
+void update_sigma(internal_state& state, const aux_data& const_data, std::vector<int> clusters_to_update) {
     /**
      * @brief Update cluster sigmas
      * @param sigma List of sigmas
@@ -534,7 +534,7 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
      *   and the input data
      */
     
-    int num_cls = sigma.length();
+    int num_cls = state.sigma.length();
     NumericVector new_w(const_data.attrisize.length());
     NumericVector new_v(const_data.attrisize.length());
     
@@ -554,9 +554,9 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
 
         // Get cluster data indexes
         std::vector<int> cluster_indices;
-        cluster_indices.reserve(sum(c_i == c));
-        for (int i = 0; i < c_i.length(); ++i) {
-            if (c_i[i] == c) {
+        cluster_indices.reserve(sum(state.c_i == c));
+        for (int i = 0; i < state.c_i.length(); ++i) {
+            if (state.c_i[i] == c) {
                 cluster_indices.push_back(i);
             }
         }
@@ -568,7 +568,7 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
         }
         
         int nm = cluster_indices.size();
-        const NumericVector & centers_cluster = as<NumericVector>(centers[c]);
+        const NumericVector & centers_cluster = as<NumericVector>(state.center[c]);
         
         // Update parameters
         for (int j = 0; j < const_data.attrisize.length(); ++j) {
@@ -579,6 +579,6 @@ void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i,
         }
 
         // Sample new sigmas
-        sigma[c] = sample_sigma_1_cluster(const_data.attrisize, new_v, new_w);
+        state.sigma[c] = sample_sigma_1_cluster(const_data.attrisize, new_v, new_w);
     }
 }

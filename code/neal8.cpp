@@ -236,7 +236,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
                 
                 // Update centers and sigmas
                 update_centers(state, const_data);
-                update_sigma(state.sigma, state.center, state.c_i, const_data);
+                update_sigma(state, const_data);
             }
 
             if(verbose == 2){

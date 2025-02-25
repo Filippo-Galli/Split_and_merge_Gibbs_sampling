@@ -99,7 +99,6 @@ List Center_prob_pippo(const NumericMatrix& data, const NumericVector& sigma, co
 void update_centers(internal_state& state, const aux_data& const_data, 
                    std::vector<int> cluster_indexes = {});
 
-void update_sigma(List & sigma, const List & centers, const IntegerVector & c_i, 
-                 const aux_data & const_data, std::vector<int> clusters_to_update = {});
+void update_sigma(internal_state& state, const aux_data & const_data, std::vector<int> clusters_to_update = {});
 
 #endif
