@@ -226,7 +226,8 @@ NumericVector sample_sigma_1_cluster(const IntegerVector & attrisize,
 
     NumericVector sigma(attrisize.length());
     for (int j = 0; j < attrisize.length(); j++) {
-        sigma[j] = rhyper_sig(1, w[j], v[j], attrisize[j])[0];
+        //sigma[j] = rhyper_sig(1, w[j], v[j], attrisize[j])[0];
+        sigma[j] = rhig(1, v[j], w[j], attrisize[j])[0];
     } 
     return sigma;
 }

@@ -16,4 +16,5 @@ Rcpp::NumericVector rhyper_sig(const int n, const double d, const double c, cons
 Rcpp::NumericVector dhyper_sig_raf2(const Rcpp::NumericVector x, const double d, const double c,
                                   const double m, const bool log_scale=false);
 
+Rcpp::NumericVector rhig(const int n, const double c, const double d, const double m);
 #endif // HYPERG_HPP

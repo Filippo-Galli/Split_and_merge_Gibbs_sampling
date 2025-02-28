@@ -255,11 +255,11 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
             }
 
             // Resampling parameters
-            // if(iter % 1000 == 0)
-            //     for(size_t i = 0; i < latent_size; ++i) {
-            //         latent_center_reuse[i] = std::move(sample_center_1_cluster(const_data.attrisize));
-            //         latent_sigma_reuse[i] = std::move(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
-            //     }
+            if(iter % 1000 == 0)
+                for(size_t i = 0; i < latent_size; ++i) {
+                    latent_center_reuse[i] = std::move(sample_center_1_cluster(const_data.attrisize));
+                    latent_sigma_reuse[i] = std::move(sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w));
+                }
 
             // Calculate likelihood
             double loglikelihood = compute_loglikelihood(state, const_data);

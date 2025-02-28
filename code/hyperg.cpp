@@ -236,10 +236,45 @@ Rcpp::NumericVector rhyper_sig(const int n, const double d, const double c, cons
   for (int i = 0; i < n; i++)
   {
     Omega = R::runif(0, 1);
-    out[i] = bisec_hyper2(d, c, m, Omega);
+    out[i] = bisec_hyper2(d, c, m, Omega); // torna u 
   }
 
   return (-1 / Rcpp::log(out));
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector rhig(const int n, const double c, const double d, const double m){
+/**
+ * @brief Generate random variables from the hypergeometric inverse gamma distribution
+ * @param n Number of random variables to generate
+ * @param c First parameter of the hypergeometric distribution
+ * @param d second parameter of the hypergeometric distribution
+ * @param m Third parameter of the hypergeometric distribution
+ * @return Random variables from the hypergeometric inverse gamma distribution
+ */
+
+  Rcpp::NumericVector out(n);
+  
+  // check if m-1/m is a quantile of the beta distribution greater than 0.1 to avoid long while loops
+  if(R::qbeta(0.2, c - 1, d + 1, 1, 0) < (m - 1)/m && (m - 1)/m > 4/5){
+    for(int i = 0; i < n; i++){
+      double x = R::rbeta(c - 1, d + 1);
+      // generate from a beta distribution until we find a value less than m-1/m
+      while(x > (m - 1)/m){
+        x = R::rbeta(c - 1, d + 1);
+      }
+      // transform the beta variable to the hypergeometric inverse gamma - (reference ipergeometric 2025 transformation from t to u)
+      out[i] = x/((m - 1)*( 1 - x));
+    }
+  } 
+  else {
+    // generate from the correct hypergeometric inverse gamma distribution
+    for(int i = 0; i < n; i++){
+      double Omega = R::runif(0, 1);
+      out[i] = bisec_hyper2(d, c, m, Omega);
+    }
+  }
+  return -1 / Rcpp::log(out);
 }
 
 // Prior over sigma
