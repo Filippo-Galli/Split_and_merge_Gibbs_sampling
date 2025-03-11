@@ -51,8 +51,8 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 v = c(rep(6,12), 3, rep(6,3))
 w = c(rep(0.25,12), 0.5, rep(0.25,3))
 
-n8 <- TRUE
-sam <- FALSE
+n8 <- FALSE
+sam <- TRUE
 
 result_name_base = "Test"
 if(n8){
@@ -64,15 +64,15 @@ if(sam){
 }
 
 L_plurale <- c(101, 20, 0, 1, 5) # 5 siccome è log(n)
-iterations <- 10000
-burnin <- 15000
+iterations <- 30000
+burnin <- 0
 m <- 3
 #t_s <- c(5, 10, 15, 20, 30)
 #r_s <- c(5, 10, 15, 20, 30)
 
 t_s <- c(10)
 r_s <- c(10)
-L_plurale <- c(1)
+L_plurale <- c(10)
 
 # Generate all combinations and filter for matches
 combinations <- expand.grid(t = t_s, r = r_s)
@@ -87,12 +87,12 @@ if(n8 == TRUE && sam == TRUE){
   steps <- list(c(1, 1))
 }
 
-Rcpp::sourceCpp("../code/neal8.cpp")
 verbose <- 0
 thinning <- 1
-
 # [IMPORTANT] Gamma test improve loglikelihood and acf
 gamma <- 0.68
+
+Rcpp::sourceCpp("../code/neal8.cpp")
 
 for(step in steps){
   n8_step <- step[1]
@@ -213,7 +213,6 @@ for(step in steps){
     }
   }
 }
-
 ######################################################################
 ######################################################################
 ######################################################################
@@ -231,11 +230,11 @@ rm(list=ls())
 source("../code/old_code/complement_functions.R")
 
 Rcpp::sourceCpp("../code/neal8.cpp")
-c <- 5
-d <- 102
+c <- 3
+d <- 0.5
 n <- 10000
 m <- 6
-test <- rhig(n, d, c, m)
+test <- rhig(n, c, d, m)
 test_2 <- rhyper_sig(n, d, c, m)
 
 # plot histogram of test 
@@ -245,14 +244,14 @@ hist(test_2, breaks = 20, main = "Histogram of rhyper_sig", xlab = "Value")
 par(mfrow = c(1,1))
 
 # percentuale di valori sotto l'1
-threshold <- 0.8
+threshold <- 1
 print(paste("Percentuale di valori sotto ", threshold, " per rhig: ", sum(test < threshold)/length(test)))
 print(paste("Percentuale di valori sotto ", threshold, " per rhyperg: ", sum(test_2 < threshold)/length(test_2)))
 
 # histogram of values under threshold
 par(mfrow = c(1,2))
-hist(test[test < 10], breaks = 20, main = "Histogram of rhig", xlab = "Value")
-hist(test_2[test_2 < 10], breaks = 20, main = "Histogram of rhyper_sig", xlab = "Value")
+hist(test[test < 4], breaks = 20, main = "Histogram of rhig", xlab = "Value")
+hist(test_2[test_2 < 4], breaks = 20, main = "Histogram of rhyper_sig", xlab = "Value")
 par(mfrow = c(1,1))
 
 ######################################################################

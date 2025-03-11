@@ -309,6 +309,7 @@ void clean_var(internal_state & updated_state,
      * @note This function is used to clean variables and update the internal state
      *     after sampling new cluster assignments
      */
+
     int num_existing_cls = existing_cls.length();
     std::unordered_map<int, int> cls_to_new_index;
     
@@ -358,14 +359,14 @@ double dhamming_pippo(int x, int c, double s, int attrisize) {
      */
 
     // Convert boolean to integer safely
-    int diff = (x != c);
+    int diff = 1 - (x == c);
+    double numerator = - diff / s;
     
     // Precompute common terms
     double exp_term = exp(1.0/s);
     double attr_ratio = (attrisize - 1.0) / exp_term;
-    
-    double numerator = -diff / s;
     double denominator = log(1.0 + attr_ratio);
+    
     return numerator - denominator; 
 }
 

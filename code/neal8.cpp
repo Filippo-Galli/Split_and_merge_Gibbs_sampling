@@ -223,7 +223,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     try{
         for (int iter = 0; iter < (iterations + burnin)*thinning; ++iter) {
             accepted = 0;
-
+            
             if(verbose != 0)
                 std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
 

@@ -7,3 +7,6 @@ This repository contains the code to implement the methods and reproduce the res
 
 > *IMPORTANT*:
 > To enable the debug print the bool variable is into `code/common_function.R`
+
+> *SUPER IMPORTANT*:
+> To perform debug print we use [icecream](https://github.com/renatoGarcia/icecream-cpp), if any problem during the compilation remember to install it

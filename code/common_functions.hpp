@@ -16,6 +16,8 @@
 
 //#include <gibbs_utility.cpp>
 
+#include <icecream.hpp>
+
 using namespace Rcpp;
 
 extern bool debug_var;
