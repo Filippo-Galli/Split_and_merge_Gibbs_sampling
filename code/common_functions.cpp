@@ -452,8 +452,8 @@ NumericVector compute_frequencies(const NumericVector& data_col, const int m_j) 
 }
 
 List Center_prob_pippo(const NumericMatrix& data, const NumericVector& sigma, const IntegerVector & attrisize) {
-    const int p = data.ncol();
-    const int n = data.nrow();
+    const int p = data.ncol(); // number of features
+    const int n = data.nrow(); // number of data points
     List prob(p);
     
     for(int i = 0; i < p; i++) {
@@ -466,7 +466,7 @@ List Center_prob_pippo(const NumericMatrix& data, const NumericVector& sigma, co
         NumericVector freq = compute_frequencies(data_col, m_j);
         
         // Create and transform probabilities using vectorized operations
-        NumericVector prob_tmp = -(n - freq) / sigma[i];
+        NumericVector prob_tmp = - (n - freq) / sigma[i];
         
         // Numerical stability: subtract max and exp
         const double max_val = max(prob_tmp);
@@ -489,6 +489,7 @@ void update_centers(internal_state& state, const aux_data& const_data, std::vect
      * @param cluster_indexes Vector of cluster indexes to update (default: empty)
      * @note This function is used to update cluster centers based on the current state
      */
+    
     const int& num_cls = state.total_cls;
     const int n_rows = const_data.data.nrow();
     
@@ -514,7 +515,8 @@ void update_centers(internal_state& state, const aux_data& const_data, std::vect
         int idx = 0;
         for (int j = 0; j < n_rows; j++) {
             if (cluster_ind[j]) {
-                data_subset(idx++, _) = const_data.data(j, _);
+                data_subset(idx, _) = const_data.data(j, _);
+                idx++;
             }
         }
         

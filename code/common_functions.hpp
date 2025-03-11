@@ -48,6 +48,22 @@ struct alignas(64) internal_state {
         }
         return *this;  // Enable chain assignments
     }
+
+    // constructor
+    internal_state(const IntegerVector& c_i, const List& center, const List& sigma, int total_cls) {
+        this->c_i = clone(c_i);
+        this->center = clone(center);
+        this->sigma = clone(sigma);
+        this->total_cls = total_cls;
+    }
+
+    internal_state(const internal_state& other) {
+        this->c_i = clone(other.c_i);
+        this->center = clone(other.center);
+        this->sigma = clone(other.sigma);
+        this->total_cls = other.total_cls;
+    }
+
 };
 
 struct alignas(64) aux_data {

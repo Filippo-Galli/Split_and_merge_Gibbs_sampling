@@ -64,15 +64,15 @@ if(sam){
 }
 
 L_plurale <- c(101, 20, 0, 1, 5) # 5 siccome è log(n)
-iterations <- 30000
-burnin <- 0
+iterations <- 50000
+burnin <- 30000
 m <- 3
 #t_s <- c(5, 10, 15, 20, 30)
 #r_s <- c(5, 10, 15, 20, 30)
 
 t_s <- c(10)
 r_s <- c(10)
-L_plurale <- c(10)
+L_plurale <- c(1)
 
 # Generate all combinations and filter for matches
 combinations <- expand.grid(t = t_s, r = r_s)
@@ -213,51 +213,6 @@ for(step in steps){
     }
   }
 }
-######################################################################
-######################################################################
-######################################################################
-######################################################################
-
-setwd("~/Documents/Split_and_merge_Gibbs_sampling/realdata_analysis")
-library(AntMAN)
-library(mcclust.ext)
-library(ggplot2)
-library(tidyverse)
-library(pheatmap)
-library(LaplacesDemon)
-#library(vcd)
-rm(list=ls())
-source("../code/old_code/complement_functions.R")
-
-Rcpp::sourceCpp("../code/neal8.cpp")
-c <- 3
-d <- 0.5
-n <- 10000
-m <- 6
-test <- rhig(n, c, d, m)
-test_2 <- rhyper_sig(n, d, c, m)
-
-# plot histogram of test 
-par(mfrow = c(1,2))
-hist(test, breaks = 20, main = "Histogram of rhig", xlab = "Value")
-hist(test_2, breaks = 20, main = "Histogram of rhyper_sig", xlab = "Value")
-par(mfrow = c(1,1))
-
-# percentuale di valori sotto l'1
-threshold <- 1
-print(paste("Percentuale di valori sotto ", threshold, " per rhig: ", sum(test < threshold)/length(test)))
-print(paste("Percentuale di valori sotto ", threshold, " per rhyperg: ", sum(test_2 < threshold)/length(test_2)))
-
-# histogram of values under threshold
-par(mfrow = c(1,2))
-hist(test[test < 4], breaks = 20, main = "Histogram of rhig", xlab = "Value")
-hist(test_2[test_2 < 4], breaks = 20, main = "Histogram of rhyper_sig", xlab = "Value")
-par(mfrow = c(1,1))
-
-######################################################################
-######################################################################
-######################################################################
-######################################################################
 
 #########
 # Posterior metrics

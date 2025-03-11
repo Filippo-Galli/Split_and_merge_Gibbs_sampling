@@ -194,7 +194,41 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
     }
 }
 
-void select_observations(const internal_state & state, int & i_1, int & i_2,std::vector<int> & S) {
+void select_observations_deterministic(const internal_state & state, int & i_1, int & i_2, std::vector<int> & S) {
+    /**
+     * @brief Select two observations and populate S with indexes in selected clusters
+     * @param state Internal state of the MCMC algorithm
+     * @param i_1 Index of the first chosen observation
+     * @param i_2 Index of the second chosen observation
+     * @param S Vector of indices of observations in the same cluster of i_1 or i_2
+     */
+
+        // indexes to choose from excluding i_1
+    IntegerVector indexes = seq(0, state.c_i.size() - 1);
+    // Sample i_2 observations
+    i_2 = sample(indexes, 1, false)[0];
+
+    // avoid to sample the same observation
+    while(i_2 == i_1) {
+        i_2 = sample(indexes, 1, false)[0];
+    }
+
+    // Reserve space for S  to avoid multiple reallocations
+    int n_i_1 = sum(state.c_i == state.c_i[i_1]) - 1; // number of observations in the cluster of i_1
+    int n_i_2 = sum(state.c_i == state.c_i[i_2]) - 1; // number of observations in the cluster of i_2
+    S.reserve(n_i_1 + n_i_2);
+
+    // Populate S with indexes in selected clusters
+    for(int i = 0; i < state.c_i.length(); ++i) {
+        if(i == i_1 || i == i_2) 
+            continue;
+        if(state.c_i[i] == state.c_i[i_1] || state.c_i[i] == state.c_i[i_2]) {
+            S.emplace_back(i);
+        }
+    }
+}
+
+void select_observations_random(const internal_state & state, int & i_1, int & i_2, std::vector<int> & S) {
     /**
      * @brief Select two observations and populate S with indexes in selected clusters
      * @param state Internal state of the MCMC algorithm
@@ -250,8 +284,10 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
     IntegerVector S_indexes = wrap(S);
 
     // Initialize split launch state
-    internal_state state_launch_split = {clone(state.c_i), clone(state.center), clone(state.sigma), state.total_cls};
-    
+    internal_state state_launch_split(state);
+    //Rcpp::Rcout << "state_launch_split before" << std::endl;
+    //print_internal_state(state_launch_split, 2);
+
     // Initialize centers and sigmas based on cluster equality
     if (state.c_i[i_1] == state.c_i[i_2]) {
         // Assign new cluster to the first observation
@@ -265,16 +301,32 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
         state_launch_split.center[state.c_i[i_1]] = sample_center_1_cluster(const_data.attrisize);
         state_launch_split.sigma[state.c_i[i_1]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
     }
-
+    
+    
     // Sample new parameters for the clusters of i_2
     state_launch_split.center[state.c_i[i_2]] = sample_center_1_cluster(const_data.attrisize);
     state_launch_split.sigma[state.c_i[i_2]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
 
+    //Rcpp::Rcout << "state_launch_split after" << std::endl;
+    //print_internal_state(state_launch_split, 2);
+
     // Random allocation of S between clusters
     state_launch_split.c_i[S_indexes] = sample(IntegerVector::create(state_launch_split.c_i[i_1], state_launch_split.c_i[i_2]), S_indexes.length(), true);
 
+    // print state_launch_split in S_indexes
+    // Rcpp::Rcout << std::endl << "state_launch_split after random allocation before" << std::endl;
+    // for(int i = 0; i < S_indexes.length(); ++i) {
+    //     Rcpp::Rcout << state_launch_split.c_i[S_indexes[i]] << " ";
+    // }
+
     // Intermediate Gibbs sampling
     split_restricted_gibbs_sampler(S, state_launch_split, i_1, i_2, const_data, t);
+
+    // Rcpp::Rcout << std::endl << "state_launch_split after random allocation after" << std::endl;
+    // for(int i = 0; i < S_indexes.length(); ++i) {
+    //     Rcpp::Rcout << state_launch_split.c_i[S_indexes[i]] << " ";
+    // }
+    // Rcpp::Rcout << std::endl;
 
     validate_state(state_launch_split, "split_launch_state");
 
@@ -361,7 +413,6 @@ double priors(const internal_state & state, int c, const aux_data & const_data){
      * @return log probability of from the prior of the current state
      */
 
-
     const NumericVector & sigma = as<List>(state.sigma)[c];
 
     double priorg=0;
@@ -405,20 +456,25 @@ double split_acc_prob(const internal_state & state_split,
     log_prior += priors(state_split, state_split.c_i[i_1], const_data);
     log_prior += priors(state_split, state_split.c_i[i_2], const_data);
     log_prior -= std::lgamma(static_cast<double>(sum(state_split.c_i == state_split.c_i[i_1])));
+    //Rcpp::Rcout << std::endl << "log_prior pre priors call: " << log_prior << std::endl;
     log_prior -= priors(state, state.c_i[i_1], const_data);
+    //Rcpp::Rcout << std::endl << "log_prior pre post call: " << log_prior << std::endl;
     
     // Likelihood ratio
     log_likelihood += loglikelihood_hamming(state_split, state_split.c_i[i_1], const_data);
     log_likelihood += loglikelihood_hamming(state_split, state_split.c_i[i_2], const_data);
     log_likelihood -= loglikelihood_hamming(state, state.c_i[i_1], const_data);
+    //Rcpp::Rcout << std::endl << "log_likelihood: " << log_likelihood << std::endl;
     
     // Proposal ratio
     log_proposal += logprobgs_phi(state, merge_launch, const_data, i_1);
     log_proposal -= logprobgs_phi(state_split, split_launch, const_data, i_1);
     log_proposal -= logprobgs_phi(state_split, split_launch, const_data, i_2);
     log_proposal -= logprobgs_c_i(state_split, split_launch, const_data, S, i_1, i_2);
+    //Rcpp::Rcout << std::endl << "log_proposal: " << log_proposal << std::endl;
     
-    log_ratio = std::min(0.0, log_prior + log_likelihood + log_proposal);
+    //log_ratio = std::min(0.0, log_prior + log_likelihood + log_proposal);
+    log_ratio = log_prior + log_likelihood + log_proposal;
     
     return log_ratio;
 }
@@ -468,28 +524,31 @@ double merge_acc_prob(const internal_state & state_merge,
     log_proposal += logprobgs_phi(state, split_launch, const_data, i_2);
     log_proposal += logprobgs_c_i(state, split_launch, const_data, S, i_1, i_2);
     log_proposal -= logprobgs_phi(state_merge, merge_launch, const_data, i_2);
+
     
-    log_ratio = std::min(0.0, log_prior + log_likelihood + log_proposal);
-    
+    //log_ratio = std::min(0.0, log_prior + log_likelihood + log_proposal);
+    log_ratio = log_prior + log_likelihood + log_proposal;
+
     return log_ratio;
 }
 
 int split_and_merge(internal_state & state,
                     const aux_data & const_data,
-                    int t, int r) {
+                    int t, int r, int & idx_1_sm) {
     /**
      * @brief Perform the split and merge move
      * @param state Internal state of the MCMC algorithm
      * @param const_data Auxiliary data for the MCMC algorithm
      * @param t Number of restricted Gibbs scans for the split move
      * @param r Number of restricted Gibbs scans for the merge move 
+     * @param idx_1_sm Index of the first chosen observation
      */
-    
-    int i_1, i_2;
+    int i_1 = idx_1_sm;
+    int i_2;
     std::vector<int> S;
     
     // Select observations and build S
-    select_observations(state, i_1, i_2, S);
+    select_observations_deterministic(state, i_1, i_2, S);
     
     // Create launch states
     internal_state split_launch = split_launch_state(S, state, i_1, i_2, t, const_data);
@@ -518,6 +577,23 @@ int split_and_merge(internal_state & state,
     if(log(R::runif(0,1)) < acpt_ratio) {
         clean_var(state, state_star, unique_classes(state_star.c_i), const_data.attrisize);
         validate_state(state, "split_and_merge - state");
+
+        // if(sum(state.c_i == state.c_i[i_1]) == 1 || sum(state.c_i == state.c_i[i_2]) == 1) {
+        //     Rcpp::Rcout << std::endl << "[DEBUG] acpt_ratio: " << acpt_ratio << std::endl;
+        //     Rcpp::Rcout << std::endl << "[DEBUG] i_1: " << i_1  << " c_1: " << state.c_i[i_1] << " i_2: " << i_2 << " c_2: " << state.c_i[i_2] << std::endl;
+
+        //     Rcpp::Rcout << std::endl << "[DEBUG] merge_launch: " << std::endl;
+        //     print_internal_state(merge_launch);
+        //     Rcpp::Rcout << std::endl << "[DEBUG] split_launch: " << std::endl;
+        //     print_internal_state(split_launch);
+
+        //     Rcpp::Rcout << std::endl << "[DEBUG] state_star: " << std::endl;
+        //     print_internal_state(state_star);
+        //     // Rcpp::Rcout << "[DEBUG] state: " << std::endl;
+        //     // print_internal_state(state);
+
+        // }
+
         return 1;
     }
     return 0;

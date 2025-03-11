@@ -12,7 +12,9 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
 
 void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state & state, int i_1, int i_2, const aux_data & const_data, int t = 1);
 
-void select_observations(const internal_state & state, int & i_1, int & i_2, std::vector<int> & S);
+void select_observations_random(const internal_state & state, int & i_1, int & i_2, std::vector<int> & S);
+
+void select_observations_deterministic(const internal_state & state, int & i_1, int & i_2, std::vector<int> & S);
 
 internal_state split_launch_state(const std::vector<int> & S, const internal_state & state, int i_1, int i_2, int t, const aux_data & const_data);
 
@@ -40,6 +42,6 @@ double merge_acc_prob(const internal_state & state_merge,
 
 int split_and_merge(internal_state & state,
                     const aux_data & const_data,
-                    int t, int r);
+                    int t, int r, int & idx_1_sm);
 
 #endif // SPLIT_MERGE_HPP

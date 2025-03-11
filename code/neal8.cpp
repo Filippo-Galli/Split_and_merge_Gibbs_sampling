@@ -220,12 +220,14 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     auto start_time =  std::chrono::steady_clock::now();
     Rcpp::Rcout << "\nStarting Markov Chain sampling..." << std::endl;
 
+    int idx_1_sm = 0;
+
     try{
         for (int iter = 0; iter < (iterations + burnin)*thinning; ++iter) {
             accepted = 0;
             
             if(verbose != 0)
-                std::cout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
+                Rcpp::Rcout << std::endl <<"[DEBUG] - Iteration " << iter << " of " << iterations + burnin << std::endl;
 
             // Sample new cluster assignments for each observation
             if(neal8 && iter%n8_step_size == 0){
@@ -246,7 +248,8 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
             // Split and merge step
             if(split_merge && iter%sam_step_size==0){
-                accepted = split_and_merge(state, const_data, t, r);
+                accepted = split_and_merge(state, const_data, t, r, idx_1_sm);
+                idx_1_sm = (idx_1_sm + 1) % const_data.n; // reset to 0 if it reaches the end
             }
 
             if(verbose == 2){
