@@ -534,7 +534,8 @@ double merge_acc_prob(const internal_state & state_merge,
 
 int split_and_merge(internal_state & state,
                     const aux_data & const_data,
-                    int t, int r, int & idx_1_sm) {
+                    int t, int r, int & idx_1_sm, 
+                    IntegerVector & gt) {
     /**
      * @brief Perform the split and merge move
      * @param state Internal state of the MCMC algorithm
@@ -558,7 +559,9 @@ int split_and_merge(internal_state & state,
     internal_state state_star = {IntegerVector(), List(), List(), 0};
     double acpt_ratio = .999;
     
+    bool split = false;
     if(state.c_i[i_1] == state.c_i[i_2]) {
+        split = true;
         // Split case        
         state_star = split_launch;
         split_restricted_gibbs_sampler(S, state_star, i_1, i_2, const_data);
@@ -575,26 +578,82 @@ int split_and_merge(internal_state & state,
     
     // Accept/reject step
     if(log(R::runif(0,1)) < acpt_ratio) {
-        clean_var(state, state_star, unique_classes(state_star.c_i), const_data.attrisize);
-        validate_state(state, "split_and_merge - state");
-
-        // if(sum(state.c_i == state.c_i[i_1]) == 1 || sum(state.c_i == state.c_i[i_2]) == 1) {
+        // if((sum(state.c_i == state.c_i[i_1]) == 1 || sum(state.c_i == state.c_i[i_2]) == 1)) {
+        //     Rcpp::Rcout << "ACCETTATO - split: " << split << std::endl;
         //     Rcpp::Rcout << std::endl << "[DEBUG] acpt_ratio: " << acpt_ratio << std::endl;
         //     Rcpp::Rcout << std::endl << "[DEBUG] i_1: " << i_1  << " c_1: " << state.c_i[i_1] << " i_2: " << i_2 << " c_2: " << state.c_i[i_2] << std::endl;
+        //     Rcpp::Rcout << std::endl << "[DEBUG] i_1: " << i_1  << " state_star.c_1: " << state_star.c_i[i_1] << " i_2: " << i_2 << " state_star.c_2: " << state_star.c_i[i_2] << std::endl;
 
-        //     Rcpp::Rcout << std::endl << "[DEBUG] merge_launch: " << std::endl;
-        //     print_internal_state(merge_launch);
-        //     Rcpp::Rcout << std::endl << "[DEBUG] split_launch: " << std::endl;
-        //     print_internal_state(split_launch);
+        //     Rcpp::Rcout << "GT[c1]: " << std::endl;
+        //     for(int i = 0; i < S.size(); i++) {
+        //         if(state_star.c_i[S[i]] == state_star.c_i[i_1]) {
+        //             Rcpp::Rcout << gt[i] << " ";
+        //         }
+        //     }
+        //     Rcpp::Rcout << " " << gt[i_1] << " ";
+        //     Rcpp::Rcout << std::endl;
+        //     // Find indices manually
+        //     Rcpp::Rcout << "GT[c2]: " << std::endl;
+        //     for(int i = 0; i < S.size(); i++) {
+        //         if(state_star.c_i[S[i]] == state_star.c_i[i_2]) {
+        //             Rcpp::Rcout << gt[i] << " ";
+        //         }
+        //     }
+        //     Rcpp::Rcout << " " << gt[i_2] << " ";
+        //     Rcpp::Rcout << std::endl;
+
+        //     // Rcpp::Rcout << std::endl << "[DEBUG] merge_launch: " << std::endl;
+        //     // print_internal_state(merge_launch);
+        //     // Rcpp::Rcout << std::endl << "[DEBUG] split_launch: " << std::endl;
+        //     // print_internal_state(split_launch);
 
         //     Rcpp::Rcout << std::endl << "[DEBUG] state_star: " << std::endl;
         //     print_internal_state(state_star);
-        //     // Rcpp::Rcout << "[DEBUG] state: " << std::endl;
-        //     // print_internal_state(state);
+        //     Rcpp::Rcout << "[DEBUG] state: " << std::endl;
+        //     print_internal_state(state);
 
         // }
 
+        clean_var(state, state_star, unique_classes(state_star.c_i), const_data.attrisize);
+        validate_state(state, "split_and_merge - state");
+
         return 1;
+    }
+    else{
+        // if((sum(state.c_i == state.c_i[i_1]) == 1 || sum(state.c_i == state.c_i[i_2]) == 1)) {
+        //     Rcpp::Rcout << "NONACC - split: " << split << std::endl;
+        //     Rcpp::Rcout << std::endl << "[DEBUG] acpt_ratio: " << acpt_ratio << std::endl;
+        //     Rcpp::Rcout << std::endl << "[DEBUG] i_1: " << i_1  << " state.c_1: " << state.c_i[i_1] << " i_2: " << i_2 << " state.c_2: " << state.c_i[i_2] << std::endl;
+        //     Rcpp::Rcout << std::endl << "[DEBUG] i_1: " << i_1  << " state_star.c_1: " << state_star.c_i[i_1] << " i_2: " << i_2 << " state_star.c_2: " << state_star.c_i[i_2] << std::endl;
+        //     // Find indices manually
+        //     Rcpp::Rcout << "GT[c1]: " << std::endl;
+        //     for(int i = 0; i < S.size(); i++) {
+        //         if(state_star.c_i[S[i]] == state_star.c_i[i_1]) {
+        //             Rcpp::Rcout << gt[i] << " ";
+        //         }
+        //     }
+        //     Rcpp::Rcout << " " << gt[i_1] << " ";
+        //     Rcpp::Rcout << std::endl;
+        //     // Find indices manually
+        //     Rcpp::Rcout << "GT[c2]: " << std::endl;
+        //     for(int i = 0; i < S.size(); i++) {
+        //         if(state_star.c_i[S[i]] == state_star.c_i[i_2]) {
+        //             Rcpp::Rcout << gt[i] << " ";
+        //         }
+        //     }
+        //     Rcpp::Rcout << " " << gt[i_2] << " ";
+        //     Rcpp::Rcout << std::endl;
+        //     // Rcpp::Rcout << std::endl << "[DEBUG] merge_launch: " << std::endl;
+        //     // print_internal_state(merge_launch);
+        //     // Rcpp::Rcout << std::endl << "[DEBUG] split_launch: " << std::endl;
+        //     // print_internal_state(split_launch);
+
+        //     Rcpp::Rcout << std::endl << "[DEBUG] state_star: " << std::endl;
+        //     print_internal_state(state_star);
+        //     Rcpp::Rcout << "[DEBUG] state: " << std::endl;
+        //     print_internal_state(state);
+
+        // }
     }
     return 0;
 }

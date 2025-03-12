@@ -64,15 +64,15 @@ if(sam){
 }
 
 L_plurale <- c(101, 20, 0, 1, 5) # 5 siccome è log(n)
-iterations <- 50000
-burnin <- 30000
+iterations <- 15000
+burnin <- 10000
 m <- 3
 #t_s <- c(5, 10, 15, 20, 30)
 #r_s <- c(5, 10, 15, 20, 30)
 
 t_s <- c(10)
 r_s <- c(10)
-L_plurale <- c(1)
+L_plurale <- c(0)
 
 # Generate all combinations and filter for matches
 combinations <- expand.grid(t = t_s, r = r_s)
@@ -113,9 +113,11 @@ for(step in steps){
         # Remove the file
         file.remove("output.txt")
       }
-      #sink("output.txt")
+      sink("output.txt")
       if(l == 1){
-        results <- run_markov_chain(data = zoo, 
+        results <- run_markov_chain(
+                                    gt = groundTruth,
+                                    data = zoo, 
                                     attrisize = mm, 
                                     gamma = gamma, 
                                     v = v, 
@@ -131,10 +133,11 @@ for(step in steps){
                                     split_merge = sam,
                                     n8_step_size = n8_step,
                                     sam_step_size = sam_step, 
-                                    thinning = thinning)
+                                    thinning = thinning) 
       }
       else if(l == 101){
-        results <- run_markov_chain(data = zoo, 
+        results <- run_markov_chain(gt = groundTruth,
+                                    data = zoo, 
                                     attrisize = mm, 
                                     gamma = gamma, 
                                     v = v, 
@@ -153,7 +156,8 @@ for(step in steps){
                                     thinning = thinning)
       }
       else if(l == 0){
-        results <- run_markov_chain(data = zoo, 
+        results <- run_markov_chain(gt = groundTruth,
+                                    data = zoo, 
                                     attrisize = mm, 
                                     gamma = gamma, 
                                     v = v, 
@@ -190,7 +194,7 @@ for(step in steps){
                                     sam_step_size = sam_step, 
                                     thinning = thinning)
       }
-      #sink(NULL)
+      sink(NULL)
       result_name = paste(result_name, "L", l, sep = "_")
       if(n8){
         result_name = paste(result_name, "M", m, "N8step", n8_step, sep = "_")

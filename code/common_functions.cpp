@@ -509,7 +509,7 @@ void update_centers(internal_state& state, const aux_data& const_data, std::vect
         int cluster_size = sum(cluster_ind);
         
         if (cluster_size == 0) continue;
-        
+
         // Create data subset using Sugar operations
         NumericMatrix data_subset(cluster_size, const_data.data.ncol());
         int idx = 0;
@@ -519,10 +519,16 @@ void update_centers(internal_state& state, const aux_data& const_data, std::vect
                 idx++;
             }
         }
-        
-        // Update center using optimized functions
-        List prob_centers = Center_prob_pippo(data_subset, state.sigma[i], const_data.attrisize);
-        state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
+
+        if (cluster_size == 1){
+            state.center[i] = data_subset(0, _);
+            continue;
+        }
+        else{
+            // Update center using optimized functions
+            List prob_centers = Center_prob_pippo(data_subset, state.sigma[i], const_data.attrisize);
+            state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
+        }
     }
 }
 

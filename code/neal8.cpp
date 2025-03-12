@@ -153,7 +153,7 @@ void sample_allocation(int idx, const aux_data & const_data, internal_state & st
 }
 
 // [[Rcpp::export]]
-List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
+List run_markov_chain(IntegerVector gt, NumericMatrix data, IntegerVector attrisize, double gamma, NumericVector v, NumericVector w, 
                     int verbose = 0, int m = 5, int iterations = 1000, int L = 1, 
                     Rcpp::Nullable<Rcpp::IntegerVector> c_i = R_NilValue, int burnin = 5000, int t = 10, int r = 10, bool neal8=false, 
                     bool split_merge = true, int n8_step_size = 1, int sam_step_size = 1, int thinning = 1) {
@@ -188,6 +188,10 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
     state.center = sample_centers(state.total_cls, const_data.attrisize);
     // Initialize sigma
     state.sigma = sample_sigmas(state.total_cls, const_data);
+
+    // Fit the parameters on the cluster assignments
+    update_centers(state, const_data);
+    update_sigma(state, const_data);
 
     if(verbose == 2 or verbose == 1){
         print_internal_state(state);
@@ -248,7 +252,7 @@ List run_markov_chain(NumericMatrix data, IntegerVector attrisize, double gamma,
 
             // Split and merge step
             if(split_merge && iter%sam_step_size==0){
-                accepted = split_and_merge(state, const_data, t, r, idx_1_sm);
+                accepted = split_and_merge(state, const_data, t, r, idx_1_sm, gt);
                 idx_1_sm = (idx_1_sm + 1) % const_data.n; // reset to 0 if it reaches the end
             }
 
