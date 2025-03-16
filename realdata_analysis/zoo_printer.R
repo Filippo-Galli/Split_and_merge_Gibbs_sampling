@@ -51,8 +51,8 @@ mm = apply(zoo, 2, function(x){length(table(x))})
 v = c(rep(6,12), 3, rep(6,3))
 w = c(rep(0.25,12), 0.5, rep(0.25,3))
 
-n8 <- FALSE
-sam <- TRUE
+n8 <- TRUE
+sam <- FALSE
 
 result_name_base = "Test"
 if(n8){
@@ -72,7 +72,7 @@ m <- 3
 
 t_s <- c(10)
 r_s <- c(10)
-L_plurale <- c(0)
+L_plurale <- c(1)
 
 # Generate all combinations and filter for matches
 combinations <- expand.grid(t = t_s, r = r_s)

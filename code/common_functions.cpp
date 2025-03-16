@@ -451,47 +451,44 @@ NumericVector compute_frequencies(const NumericVector& data_col, const int m_j) 
     return freqs;
 }
 
-
-
-List Center_prob_pippo(const NumericMatrix& data, const NumericVector& sigma, const IntegerVector & attrisize) {
+List Center_prob_pippo(const NumericMatrix& data, const IntegerVector& indices, 
+                        const NumericVector& sigma, const IntegerVector& attrisize) {
     const int p = data.ncol(); // number of features
-    const int n = data.nrow(); // number of data points
+    const int n = indices.size(); // number of data points in the cluster
     List prob(p);
-    
-    for(int i = 0; i < p; i++) {
-        const int m_j = attrisize[i];
-        
-        // Extract column as vector for easier manipulation
-        NumericVector data_col = data(_, i);
-        
-        // Get frequencies using Sugar operations
-        NumericVector freq = compute_frequencies(data_col, m_j);
-        
+
+    for(int j = 0; j < p; j++) {
+        const int m_j = attrisize[j];
+
+        // Initialize frequency vector with zeros
+        NumericVector freq(m_j, 0.0);
+
+        // Count frequencies using indices
+        for(int idx = 0; idx < n; idx++) {
+            int i = indices[idx]; // Get the actual row index
+            int value = data(i, j);// Get the value at the current row and column
+            if(value >= 1 && value <= m_j) {
+                freq[value - 1]++;
+            }
+        }
+
         // Create and transform probabilities using vectorized operations
-        NumericVector prob_tmp = - (n - freq) / sigma[i];
-        
+        NumericVector prob_tmp = -(n - freq) / sigma[j];
+
         // Numerical stability: subtract max and exp
         const double max_val = max(prob_tmp);
         prob_tmp = exp(prob_tmp - max_val);
-        
+
         // Normalize using Sugar's sum
         prob_tmp = prob_tmp / sum(prob_tmp);
-        
-        prob[i] = prob_tmp;
+
+        prob[j] = prob_tmp;
     }
-    
+
     return prob;
 }
 
 void update_phi(internal_state& state, const aux_data& const_data, std::vector<int> cluster_indexes) {
-    /**
-     * @brief Update cluster centers
-     * @param state Internal state of the MCMC sampler
-     * @param const_data Auxiliary data for the MCMC algorithm
-     * @param cluster_indexes Vector of cluster indexes to update (default: empty)
-     * @note This function is used to update cluster centers based on the current state
-     */
-
     const int& num_cls = state.total_cls;
     const int n_rows = const_data.data.nrow();
     NumericVector new_w(const_data.attrisize.length());
@@ -500,7 +497,6 @@ void update_phi(internal_state& state, const aux_data& const_data, std::vector<i
     // Use Sugar for cluster mask
     LogicalVector cluster_mask = LogicalVector(num_cls, cluster_indexes.empty());
     if (!cluster_indexes.empty()) {
-        // Convert indexes to 0-based for internal use
         IntegerVector idx = wrap(cluster_indexes);
         cluster_mask[idx] = true;
     }
@@ -508,50 +504,52 @@ void update_phi(internal_state& state, const aux_data& const_data, std::vector<i
     for (int i = 0; i < num_cls; i++) {
         if (!cluster_mask[i]) continue;
         
-        // Use Sugar to create cluster indicator
-        LogicalVector cluster_ind = NumericVector(state.c_i) == i;
-        int cluster_size = sum(cluster_ind);
-        
-        if (cluster_size == 0) continue;
-
-        // Create data subset using Sugar operations
-        NumericMatrix data_subset(cluster_size, const_data.data.ncol());
-        int idx = 0;
+        // Create a vector of indices for this cluster
+        std::vector<int> cluster_indices;
         for (int j = 0; j < n_rows; j++) {
-            if (cluster_ind[j]) {
-                data_subset(idx, _) = const_data.data(j, _);
-                idx++;
+            if (state.c_i[j] == i) {
+                cluster_indices.push_back(j);
             }
         }
+        
+        int cluster_size = cluster_indices.size();
+        if (cluster_size == 0) continue;
+        
+        // Convert to IntegerVector for use with Sugar functions
+        IntegerVector indices = wrap(cluster_indices);
 
         /*
         * ------------------------ Update Centers ------------------------
         */
-
-        // if (cluster_size == 1){
-        //     state.center[i] = data_subset(0, _);
-        //     continue;
-        // }
-        // else{
-        //     // Update center using optimized functions
-        //     List prob_centers = Center_prob_pippo(data_subset, state.sigma[i], const_data.attrisize);
-        //     state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
-        // }
-
-        // Update center using optimized functions
-        List prob_centers = Center_prob_pippo(data_subset, state.sigma[i], const_data.attrisize);
+        
+        // Update center using optimized functions that work with indices
+        List prob_centers = Center_prob_pippo(const_data.data, indices, 
+                                            as<NumericVector>(state.sigma[i]), 
+                                            const_data.attrisize);
         state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
 
         /*
         * ------------------------ Update Sigma ------------------------
         */
-
-        const NumericVector & centers_cluster = as<NumericVector>(state.center[i]);
+        
+        const NumericVector& centers_cluster = as<NumericVector>(state.center[i]);
+        
+        // Initialize counters for matches with center values
+        NumericVector match_counts(const_data.attrisize.length(), 0.0);
+        
+        // Count matches using indices
+        for (int idx = 0; idx < cluster_size; idx++) {
+            int j = indices[idx]; // Get the actual row index
+            for (int k = 0; k < const_data.attrisize.length(); k++) {
+                if (const_data.data(j, k) == centers_cluster[k]) {
+                    match_counts[k]++;
+                }
+            }
+        }
         
         // Update parameters
-        for (int j = 0; j < const_data.attrisize.length(); ++j) {
-            const NumericVector & col = data_subset(_, j);
-            double sumdelta = sum(col == centers_cluster[j]);
+        for (int j = 0; j < const_data.attrisize.length(); j++) {
+            double sumdelta = match_counts[j];
             new_w[j] = const_data.w[j] + cluster_size - sumdelta;
             new_v[j] = const_data.v[j] + sumdelta;   
         }

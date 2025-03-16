@@ -17,31 +17,39 @@ double logdensity_hig(double sigmaj, double v, double w, double m){
 }
 
 double logprobgs_phi(const internal_state & gamma_star, const internal_state & gamma,
-                    const aux_data & const_data, const int & choosen_idx) {
+    const aux_data & const_data, const int & choosen_idx) {
     /**
-     * @brief Compute the probability of the parameters - paper reference: P_{GS}(\phi*|phi^L, y)
-     * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
-     * @param gamma state containing the launch cluster assignment, launch cluster centers, and launch cluster dispersions - paper reference: (c^L, \phi^L)
-     * @param const_data auxiliary data for the MCMC algorithm containing the input data matrix, attribute sizes, and hypergeometric parameters
-     * @param choosen_idx index of the chosen observation
-     */
+    * @brief Compute the probability of the parameters - paper reference: P_{GS}(\phi*|phi^L, y)
+    * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
+    * @param gamma state containing the launch cluster assignment, launch cluster centers, and launch cluster dispersions - paper reference: (c^L, \phi^L)
+    * @param const_data auxiliary data for the MCMC algorithm containing the input data matrix, attribute sizes, and hypergeometric parameters
+    * @param choosen_idx index of the chosen observation
+    */
 
     // Get cluster for chosen observation
     int c = gamma_star.c_i[choosen_idx];
-    
-    // Subset data for the cluster
-    const NumericMatrix& data_tmp = subset_data_for_cluster(const_data.data, c, gamma_star);
-    
+
+    // Get indices of observations in the cluster
+    std::vector<int> cluster_indices;
+    for (int i = 0; i < gamma_star.c_i.length(); i++) {
+        if (gamma_star.c_i[i] == c) {
+            cluster_indices.push_back(i);
+        }
+    }
+    IntegerVector indices = wrap(cluster_indices);
+
     // Get number of observations in the cluster
-    int nm = data_tmp.nrow();
-    
+    int nm = indices.size();
+
     /*
     ------------------------------ Center probability ------------------------------
     */
     double log_center_prob = 0;
 
     // Prior probability of centers
-    const List& prob_centers = Center_prob_pippo(data_tmp, gamma.sigma[gamma.c_i[choosen_idx]], const_data.attrisize);
+    const List& prob_centers = Center_prob_pippo(const_data.data, indices, 
+                                gamma.sigma[gamma.c_i[choosen_idx]], 
+                                const_data.attrisize);
 
     // Calculate log-probability of center parameters
     const NumericVector& centerstar = gamma_star.center[c];
@@ -55,14 +63,26 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
     */
 
     double log_sigma_prob = 0;
-    
+
+    // Compute match counts with center values using indices
+    NumericVector match_counts(const_data.attrisize.length(), 0.0);
+    const NumericVector& center = as<NumericVector>(gamma_star.center[c]);
+
+    for (int idx = 0; idx < nm; idx++) {
+        int i = indices[idx]; // Get the actual row index
+        for (int j = 0; j < const_data.attrisize.length(); j++) {
+            if (const_data.data(i, j) == center[j]) {
+            match_counts[j]++;
+            }
+        }
+    }
+
     // Log-probability of sigma parameters
     for(int j = 0; j < const_data.attrisize.length(); j++) {
-        const NumericVector& col = data_tmp(_, j);
-        double sumdelta = sum(col == as<NumericVector>(gamma_star.center[c])[j]);
+        double sumdelta = match_counts[j];
         double new_v = const_data.v[j] + sumdelta;
         double new_w = const_data.w[j] + nm - sumdelta;
-        
+
         log_sigma_prob += logdensity_hig(as<NumericVector>(gamma_star.sigma[c])[j], new_v, new_w, const_data.attrisize[j]);
     }
 

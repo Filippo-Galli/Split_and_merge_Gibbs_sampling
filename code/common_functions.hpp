@@ -16,8 +16,6 @@
 
 //#include <gibbs_utility.cpp>
 
-#include <icecream.hpp>
-
 using namespace Rcpp;
 
 extern bool debug_var;
@@ -112,7 +110,7 @@ NumericMatrix subset_data_for_cluster(const NumericMatrix& data, int cluster, co
 
 NumericVector compute_frequencies(const NumericVector& data_col, const int m_j);
 
-List Center_prob_pippo(const NumericMatrix& data, const NumericVector& sigma, const IntegerVector & attrisize);
+List Center_prob_pippo(const NumericMatrix& data, const IntegerVector& indices, const NumericVector& sigma, const IntegerVector& attrisize);
 
 void update_phi(internal_state& state, const aux_data& const_data, 
                    std::vector<int> cluster_indexes = {});
