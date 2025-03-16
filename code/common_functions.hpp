@@ -114,9 +114,8 @@ NumericVector compute_frequencies(const NumericVector& data_col, const int m_j);
 
 List Center_prob_pippo(const NumericMatrix& data, const NumericVector& sigma, const IntegerVector & attrisize);
 
-void update_centers(internal_state& state, const aux_data& const_data, 
+void update_phi(internal_state& state, const aux_data& const_data, 
                    std::vector<int> cluster_indexes = {});
 
-void update_sigma(internal_state& state, const aux_data & const_data, std::vector<int> clusters_to_update = {});
 
 #endif

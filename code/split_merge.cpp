@@ -188,8 +188,7 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
         * ------------------------ Update Centers ------------------------
         */
 
-        update_centers(state, const_data, {c_i_1, c_i_2});
-        update_sigma(state, const_data, {c_i_1, c_i_2});
+        update_phi(state, const_data, {c_i_1, c_i_2});
         validate_state(state, "split_restricted_gibbs_sampler - iteration " + std::to_string(iter));
     }
 }
@@ -368,10 +367,9 @@ internal_state merge_launch_state(const std::vector<int> & S,
     clean_var(state_launch_merge, state_launch_merge, unique_classes(state_launch_merge.c_i), const_data.attrisize);                                 
 
     // Update parameters r times
-    for(int iter = 0; iter < r; ++iter) {
-        update_centers(state_launch_merge, const_data, {state_launch_merge.c_i[i_2]});
-        update_sigma(state_launch_merge, const_data, {state_launch_merge.c_i[i_2]});
-    }
+    for(int iter = 0; iter < r; ++iter) 
+        update_phi(state_launch_merge, const_data, {state_launch_merge.c_i[i_2]});
+    
 
     validate_state(state_launch_merge, "merge_launch_state");
 
@@ -569,8 +567,7 @@ int split_and_merge(internal_state & state,
     } else {
         // Merge case        
         state_star = merge_launch;
-        update_centers(state_star, const_data, {state_star.c_i[i_2]});
-        update_sigma(state_star, const_data, {state_star.c_i[i_2]});
+        update_phi(state_star, const_data, {state_star.c_i[i_2]});
         acpt_ratio = merge_acc_prob(state_star, state, split_launch, merge_launch, S, i_1, i_2, const_data);
     }
 

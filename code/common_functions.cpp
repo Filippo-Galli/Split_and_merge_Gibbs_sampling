@@ -451,6 +451,8 @@ NumericVector compute_frequencies(const NumericVector& data_col, const int m_j) 
     return freqs;
 }
 
+
+
 List Center_prob_pippo(const NumericMatrix& data, const NumericVector& sigma, const IntegerVector & attrisize) {
     const int p = data.ncol(); // number of features
     const int n = data.nrow(); // number of data points
@@ -481,7 +483,7 @@ List Center_prob_pippo(const NumericMatrix& data, const NumericVector& sigma, co
     return prob;
 }
 
-void update_centers(internal_state& state, const aux_data& const_data, std::vector<int> cluster_indexes) {
+void update_phi(internal_state& state, const aux_data& const_data, std::vector<int> cluster_indexes) {
     /**
      * @brief Update cluster centers
      * @param state Internal state of the MCMC sampler
@@ -489,10 +491,12 @@ void update_centers(internal_state& state, const aux_data& const_data, std::vect
      * @param cluster_indexes Vector of cluster indexes to update (default: empty)
      * @note This function is used to update cluster centers based on the current state
      */
-    
+
     const int& num_cls = state.total_cls;
     const int n_rows = const_data.data.nrow();
-    
+    NumericVector new_w(const_data.attrisize.length());
+    NumericVector new_v(const_data.attrisize.length());
+
     // Use Sugar for cluster mask
     LogicalVector cluster_mask = LogicalVector(num_cls, cluster_indexes.empty());
     if (!cluster_indexes.empty()) {
@@ -520,75 +524,39 @@ void update_centers(internal_state& state, const aux_data& const_data, std::vect
             }
         }
 
-        if (cluster_size == 1){
-            state.center[i] = data_subset(0, _);
-            continue;
-        }
-        else{
-            // Update center using optimized functions
-            List prob_centers = Center_prob_pippo(data_subset, state.sigma[i], const_data.attrisize);
-            state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
-        }
-    }
-}
+        /*
+        * ------------------------ Update Centers ------------------------
+        */
 
-void update_sigma(internal_state& state, const aux_data& const_data, std::vector<int> clusters_to_update) {
-    /**
-     * @brief Update cluster sigmas
-     * @param sigma List of sigmas
-     * @param centers List of centers
-     * @param c_i Cluster assignments
-     * @param const_data Auxiliary data for the MCMC algorithm
-     * @param clusters_to_update Vector of cluster indexes to update (default: empty)
-     * @note This function is used to update cluster sigmas based on the current state
-     *   and the input data
-     */
-    
-    int num_cls = state.sigma.length();
-    NumericVector new_w(const_data.attrisize.length());
-    NumericVector new_v(const_data.attrisize.length());
-    
-    // Determine clusters to process
-    std::vector<int> clusters;
-    if (clusters_to_update.size() == 0) {
-        clusters.resize(num_cls);
-        for (int i = 0; i < num_cls; i++) {
-            clusters[i] = i;
-        }
-    } else {
-        clusters = std::move(clusters_to_update);
-    }
-    
-    // Process each cluster
-    for (int c : clusters) {
+        // if (cluster_size == 1){
+        //     state.center[i] = data_subset(0, _);
+        //     continue;
+        // }
+        // else{
+        //     // Update center using optimized functions
+        //     List prob_centers = Center_prob_pippo(data_subset, state.sigma[i], const_data.attrisize);
+        //     state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
+        // }
 
-        // Get cluster data indexes
-        std::vector<int> cluster_indices;
-        cluster_indices.reserve(sum(state.c_i == c));
-        for (int i = 0; i < state.c_i.length(); ++i) {
-            if (state.c_i[i] == c) {
-                cluster_indices.push_back(i);
-            }
-        }
-        
-        // Create cluster data matrix
-        NumericMatrix cluster_data(cluster_indices.size(), const_data.data.ncol());
-        for (int i = 0; i < cluster_indices.size(); ++i) {
-            cluster_data(i, _) = const_data.data(cluster_indices[i], _);
-        }
-        
-        int nm = cluster_indices.size();
-        const NumericVector & centers_cluster = as<NumericVector>(state.center[c]);
+        // Update center using optimized functions
+        List prob_centers = Center_prob_pippo(data_subset, state.sigma[i], const_data.attrisize);
+        state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);
+
+        /*
+        * ------------------------ Update Sigma ------------------------
+        */
+
+        const NumericVector & centers_cluster = as<NumericVector>(state.center[i]);
         
         // Update parameters
         for (int j = 0; j < const_data.attrisize.length(); ++j) {
-            const NumericVector & col = cluster_data(_, j);
+            const NumericVector & col = data_subset(_, j);
             double sumdelta = sum(col == centers_cluster[j]);
-            new_w[j] = const_data.w[j] + nm - sumdelta;
+            new_w[j] = const_data.w[j] + cluster_size - sumdelta;
             new_v[j] = const_data.v[j] + sumdelta;   
         }
 
         // Sample new sigmas
-        state.sigma[c] = sample_sigma_1_cluster(const_data.attrisize, new_v, new_w);
+        state.sigma[i] = sample_sigma_1_cluster(const_data.attrisize, new_v, new_w);
     }
 }

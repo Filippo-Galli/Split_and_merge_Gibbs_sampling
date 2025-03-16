@@ -190,8 +190,7 @@ List run_markov_chain(IntegerVector gt, NumericMatrix data, IntegerVector attris
     state.sigma = sample_sigmas(state.total_cls, const_data);
 
     // Fit the parameters on the cluster assignments
-    update_centers(state, const_data);
-    update_sigma(state, const_data);
+    update_phi(state, const_data);
 
     if(verbose == 2 or verbose == 1){
         print_internal_state(state);
@@ -241,8 +240,7 @@ List run_markov_chain(IntegerVector gt, NumericMatrix data, IntegerVector attris
                 } 
                 
                 // Update centers and sigmas
-                update_centers(state, const_data);
-                update_sigma(state, const_data);
+                update_phi(state, const_data);
             }
 
             if(verbose == 2){
