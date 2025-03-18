@@ -473,7 +473,7 @@ double split_acc_prob(const internal_state & state_split,
     log_prior += std::lgamma(static_cast<double>(sum(state_split.c_i == state_split.c_i[i_2])));
     log_prior += priors(state_split, state_split.c_i[i_1], const_data);
     log_prior += priors(state_split, state_split.c_i[i_2], const_data);
-    log_prior -= std::lgamma(static_cast<double>(sum(state_split.c_i == state_split.c_i[i_1])));
+    log_prior -= std::lgamma(static_cast<double>(sum(state.c_i == state.c_i[i_1])));
     //Rcpp::Rcout << std::endl << "log_prior pre priors call: " << log_prior << std::endl;
     log_prior -= priors(state, state.c_i[i_1], const_data);
     //Rcpp::Rcout << std::endl << "log_prior pre post call: " << log_prior << std::endl;
