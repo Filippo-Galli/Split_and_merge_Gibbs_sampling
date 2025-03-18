@@ -348,7 +348,7 @@ void clean_var(internal_state & updated_state,
     validate_state(updated_state, "clean_var");
 }
 
-double dhamming_pippo(int x, int c, double s, int attrisize) {
+inline double dhamming_pippo(int x, int c, double s, int attrisize) {
     /**
      * @brief Compute Log-Hamming distance between two values
      * @param x First value

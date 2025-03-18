@@ -102,7 +102,7 @@ void clean_var(internal_state & updated_state,
               const IntegerVector& existing_cls, 
               const IntegerVector& attrisize);
 
-double dhamming_pippo(int x, int c, double s, int attrisize);
+inline double dhamming_pippo(int x, int c, double s, int attrisize);
 
 double compute_loglikelihood(internal_state & state, aux_data & const_data);
 

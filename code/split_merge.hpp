@@ -16,9 +16,9 @@ void select_observations_random(const internal_state & state, int & i_1, int & i
 
 void select_observations_deterministic(const internal_state & state, int & i_1, int & i_2, std::vector<int> & S);
 
-internal_state split_launch_state(const std::vector<int> & S, const internal_state & state, int i_1, int i_2, int t, const aux_data & const_data);
+void split_launch_state(const std::vector<int> & S, const internal_state & state, int i_1, int i_2, int t, const aux_data & const_data, internal_state & state_launch_split);
 
-internal_state merge_launch_state(const std::vector<int> & S, const internal_state & state, int i_1, int i_2, int r, const aux_data & const_data);
+void merge_launch_state(const std::vector<int> & S, const internal_state & state, int i_1, int i_2, int r, const aux_data & const_data, internal_state & state_launch_merge);
 
 double loglikelihood_hamming(const internal_state & state, int c, const aux_data & const_data);
 

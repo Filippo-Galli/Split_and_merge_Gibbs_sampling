@@ -1,5 +1,6 @@
 #include "split_merge.hpp"
 #include <cmath>
+#include "common_functions.hpp"
 #include "hyperg.hpp"
 
 double logdensity_hig(double sigmaj, double v, double w, double m){
@@ -286,8 +287,8 @@ void select_observations_random(const internal_state & state, int & i_1, int & i
     }
 }
 
-internal_state split_launch_state(const std::vector<int> & S,const internal_state & state,
-                                int i_1, int i_2, int t, const aux_data & const_data) {
+void split_launch_state(const std::vector<int> & S,const internal_state & state,
+                                int i_1, int i_2, int t, const aux_data & const_data, internal_state & state_launch_split) {
     /**
      * @brief Generate the launch state for the split move
      * @param S Vector of indices of observations in the same cluster of i_1 or i_2
@@ -303,7 +304,7 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
     IntegerVector S_indexes = wrap(S);
 
     // Initialize split launch state
-    internal_state state_launch_split(state);
+    state_launch_split = state;
     //Rcpp::Rcout << "state_launch_split before" << std::endl;
     //print_internal_state(state_launch_split, 2);
 
@@ -348,14 +349,13 @@ internal_state split_launch_state(const std::vector<int> & S,const internal_stat
     // Rcpp::Rcout << std::endl;
 
     validate_state(state_launch_split, "split_launch_state");
-
-    return state_launch_split;
 }
 
-internal_state merge_launch_state(const std::vector<int> & S,
+void merge_launch_state(const std::vector<int> & S,
                                 const internal_state & state,
                                 int i_1, int i_2, int r,
-                                const aux_data & const_data) {
+                                const aux_data & const_data, 
+                                internal_state & state_launch_merge) {
     /**
      * @brief Generate the launch state for the merge move
      * @param S Vector of indices of observations in the same cluster of i_1 or i_2
@@ -367,22 +367,35 @@ internal_state merge_launch_state(const std::vector<int> & S,
      * @return Internal state of the MCMC algorithm
      */
 
-    // Initialize merge launch state
-    IntegerVector c_L_merge = clone(state.c_i);
-    List center_L_merge = clone(state.center);
-    List sigma_L_merge = clone(state.sigma);
-
-    if(state.c_i[i_1] != state.c_i[i_2]) {
-        c_L_merge[i_1] = c_L_merge[i_2];
+    state_launch_merge = state;
+    
+    if(state_launch_merge.c_i[i_1] != state_launch_merge.c_i[i_2]) {
+        state_launch_merge.c_i[i_1] = state_launch_merge.c_i[i_2];
         IntegerVector S_indexes = wrap(S);
-        c_L_merge[S_indexes] = c_L_merge[i_2];
+        state_launch_merge.c_i[S_indexes] = state_launch_merge.c_i[i_2];
     }
 
     // Draw new parameters for merged component
-    center_L_merge[c_L_merge[i_2]] = sample_center_1_cluster(const_data.attrisize);
-    sigma_L_merge[c_L_merge[i_2]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+    state_launch_merge.center[state_launch_merge.c_i[i_2]] = sample_center_1_cluster(const_data.attrisize);
+    state_launch_merge.sigma[state_launch_merge.c_i[i_2]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
 
-    internal_state state_launch_merge = {c_L_merge, center_L_merge, sigma_L_merge, static_cast<int>(unique_classes(c_L_merge).length())};
+
+    // // Initialize merge launch state
+    // IntegerVector c_L_merge = clone(state.c_i);
+    // List center_L_merge = clone(state.center);
+    // List sigma_L_merge = clone(state.sigma);
+
+    // if(state.c_i[i_1] != state.c_i[i_2]) {
+    //     c_L_merge[i_1] = c_L_merge[i_2];
+    //     IntegerVector S_indexes = wrap(S);
+    //     c_L_merge[S_indexes] = c_L_merge[i_2];
+    // }
+
+    // // Draw new parameters for merged component
+    // center_L_merge[c_L_merge[i_2]] = sample_center_1_cluster(const_data.attrisize);
+    // sigma_L_merge[c_L_merge[i_2]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
+
+    // state_launch_merge = {c_L_merge, center_L_merge, sigma_L_merge, static_cast<int>(unique_classes(c_L_merge).length())};
 
     clean_var(state_launch_merge, state_launch_merge, unique_classes(state_launch_merge.c_i), const_data.attrisize);                                 
 
@@ -392,8 +405,6 @@ internal_state merge_launch_state(const std::vector<int> & S,
     
 
     validate_state(state_launch_merge, "merge_launch_state");
-
-    return state_launch_merge;
 }
 
 double loglikelihood_hamming(const internal_state & state, int c, const aux_data & const_data) {
@@ -565,16 +576,18 @@ int split_and_merge(internal_state & state,
     int i_1 = idx_1_sm;
     int i_2;
     std::vector<int> S;
+    internal_state state_star = {IntegerVector(), List(), List(), 0};
+    internal_state split_launch = {IntegerVector(), List(), List(), 0};
+    internal_state merge_launch = {IntegerVector(), List(), List(), 0};
     
     // Select observations and build S
     select_observations_deterministic(state, i_1, i_2, S);
     
     // Create launch states
-    internal_state split_launch = split_launch_state(S, state, i_1, i_2, t, const_data);
-    internal_state merge_launch = merge_launch_state(S, state, i_1, i_2, r, const_data);
+    split_launch_state(S, state, i_1, i_2, t, const_data, split_launch);
+    merge_launch_state(S, state, i_1, i_2, r, const_data, merge_launch);
     
     // Initialize proposed state
-    internal_state state_star = {IntegerVector(), List(), List(), 0};
     double acpt_ratio = .999;
     
     bool split = false;
