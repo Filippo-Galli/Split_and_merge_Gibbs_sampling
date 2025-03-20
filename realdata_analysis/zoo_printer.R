@@ -72,7 +72,7 @@ m <- 3
 
 t_s <- c(10)
 r_s <- c(10)
-L_plurale <- c(1)
+L_plurale <- c(10)
 
 # Generate all combinations and filter for matches
 combinations <- expand.grid(t = t_s, r = r_s)
@@ -176,7 +176,7 @@ for(step in steps){
                                     thinning = thinning)
       }
       else{
-        results <- run_markov_chain(data = zoo, 
+        results <- run_markov_chain(gt = groundTruth, data = zoo, 
                                     attrisize = mm, 
                                     gamma = gamma, 
                                     v = v, 
