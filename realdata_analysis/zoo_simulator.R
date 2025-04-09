@@ -71,7 +71,7 @@ sam_params <- lapply(sam_params, function(x) c(x$t, x$r))
 
 # Algorithm to use
 n8 <- TRUE
-sam <- FALSE
+sam <- TRUE
 
 # File name baseline to use w.r.t to the algorithm used
 result_name_base <- "Zoo_Test"
@@ -142,7 +142,7 @@ for (step in steps) {
                                   w = w,
                                   verbose = verbose,
                                   m = m,
-                                TRUE  iterations = iterations,
+                                  iterations = iterations,
                                   L = l,
                                   burnin = burnin,
                                   t = t,
