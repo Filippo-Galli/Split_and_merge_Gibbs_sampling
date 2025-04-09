@@ -14,8 +14,6 @@
 #include <Rinternals.h>
 #include <gsl/gsl_sf_hyperg.h>
 
-//#include <gibbs_utility.cpp>
-
 using namespace Rcpp;
 
 extern bool debug_var;
@@ -102,7 +100,7 @@ void clean_var(internal_state & updated_state,
               const IntegerVector& existing_cls, 
               const IntegerVector& attrisize);
 
-inline double dhamming_pippo(int x, int c, double s, int attrisize);
+inline double dhamming(int x, int c, double s, int attrisize);
 
 double compute_loglikelihood(internal_state & state, aux_data & const_data);
 
@@ -110,10 +108,9 @@ NumericMatrix subset_data_for_cluster(const NumericMatrix& data, int cluster, co
 
 NumericVector compute_frequencies(const NumericVector& data_col, const int m_j);
 
-List Center_prob_pippo(const NumericMatrix& data, const IntegerVector& indices, const NumericVector& sigma, const IntegerVector& attrisize);
+List compute_prob_centers(const NumericMatrix& data, const IntegerVector& indices, const NumericVector& sigma, const IntegerVector& attrisize);
 
-void update_phi(internal_state& state, const aux_data& const_data, 
-                   std::vector<int> cluster_indexes = {});
+void update_phi(internal_state& state, const aux_data& const_data, std::vector<int> cluster_indexes = {});
 
 
 #endif

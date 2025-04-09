@@ -1,5 +1,5 @@
-#include "common_functions.hpp"
-#include "hyperg.hpp"
+#include "./common_functions.hpp"
+#include "./hyperg.hpp"
 
 bool debug_var = true;
 
@@ -38,7 +38,6 @@ namespace debug {
     }
 }
 
-// Print functions
 void print_internal_state(const internal_state& state, int interest) {
     /**
      * @brief Print internal state of the MCMC sampler
@@ -145,6 +144,11 @@ void print_progress_bar(int progress, int total, const std::chrono::steady_clock
 }
 
 void validate_state(const internal_state& state, const std::string& message) {
+    /**
+    * @brief Validate the internal state of the MCMC sampler to ensure consistency
+    * @param state Internal state of the MCMC sampler
+    * @param message Message to include in the error if validation fails, useful to track when the fail starts
+     */
     
     // Ensure consistency between c_i and total_cls
     IntegerVector unique_cls = unique_classes(state.c_i);
@@ -165,10 +169,8 @@ void validate_state(const internal_state& state, const std::string& message) {
         Rcpp::Rcout << "Total classes: " << state.total_cls << std::endl;
         Rcpp::stop(error_message);
     }
-    
 }
 
-// Initialization functions
 IntegerVector sample_initial_assignment(double K, int n) {
     /**
      * @brief Sample initial cluster assignments
@@ -263,6 +265,7 @@ IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int 
      * @param index_to_del Index to exclude
      * @return IntegerVector containing unique classes
      */
+
     std::set<double> unique_classes;
     for (int i = 0; i < c_i.length(); ++i) {
         if (i != index_to_del) {
@@ -270,12 +273,6 @@ IntegerVector unique_classes_without_index(const IntegerVector & c_i, const int 
         }
     }
     return wrap(std::vector<double>(unique_classes.begin(), unique_classes.end()));
-
-    // Create a LogicalVector from the comparison
-    //const LogicalVector & mask = (seq_len(c_i.length()) - 1) != index_to_del;
-    //// Materialize the subset before passing to unique
-    //const IntegerVector & subset = c_i[mask];
-    //return unique(subset);
 }
 
 int count_cluster_members(const IntegerVector& c_i, int exclude_index, int cls) {
@@ -301,23 +298,27 @@ void clean_var(internal_state & updated_state,
               const IntegerVector& existing_cls, 
               const IntegerVector& attrisize) {
     /**
-     * @brief Clean variables and update state
+     * @brief Clear state from unused clusters and update internal state to mantain consistency
      * @param updated_state Updated internal state
      * @param current_state Current internal state
      * @param existing_cls Existing cluster indices
      * @param attrisize Vector of attribute sizes
-     * @note This function is used to clean variables and update the internal state
-     *     after sampling new cluster assignments
+     * @note This function is used to clean variables and update the internal state after sampling new cluster assignments
+     * @note this function could be optimized to avoid the creation of a new list
      */
 
     int num_existing_cls = existing_cls.length();
     std::unordered_map<int, int> cls_to_new_index;
     
+    // Map existing cluster indices to new indices avoiding changes of the order
     for(int i = 0; i < num_existing_cls; ++i) {
         int idx_temp = 0;
+        // if a cluster exists and is before the modified cluster mantain the index
         if(existing_cls[i] < num_existing_cls){
             cls_to_new_index[existing_cls[i]] = existing_cls[i];
-        } else {
+        } 
+        // find the first available index for the new cluster
+        else {
             while(cls_to_new_index.find(idx_temp) != cls_to_new_index.end() 
                   && idx_temp < num_existing_cls){
                 idx_temp++;
@@ -326,18 +327,20 @@ void clean_var(internal_state & updated_state,
         }
     }
     
+    // update the center and sigma lists
     List new_center(num_existing_cls);
     List new_sigma(num_existing_cls);
-
     for(int i = 0; i < num_existing_cls; ++i) {
         new_center[cls_to_new_index[existing_cls[i]]] = current_state.center[existing_cls[i]];
         new_sigma[cls_to_new_index[existing_cls[i]]] = current_state.sigma[existing_cls[i]];
     }
 
+    // move updated center and sigma to the updated state
     updated_state.center = std::move(new_center);
     updated_state.sigma = std::move(new_sigma);
     updated_state.total_cls = num_existing_cls;
 
+    // Update cluster assignments
     for(int i = 0; i < current_state.c_i.length(); i++) {
         auto it = cls_to_new_index.find(current_state.c_i[i]);
         if(it != cls_to_new_index.end()) {
@@ -345,17 +348,20 @@ void clean_var(internal_state & updated_state,
         }
     }
 
+    // check consistency of the updated state
     validate_state(updated_state, "clean_var");
 }
 
-inline double dhamming_pippo(int x, int c, double s, int attrisize) {
+inline double dhamming(int x, int c, double s, int attrisize) {
     /**
-     * @brief Compute Log-Hamming distance between two values
+     * @brief Compute Log-Hamming density between two values
      * @param x First value
      * @param c Second value
      * @param s Sigma parameter
      * @param attrisize Attribute size
-     * @return Hamming distance between x and c
+     * @return Hamming density between x and c
+     * @note this function is the hamming density from the paper Argiento et al. (2024) "Model-based clustering of cat-
+egorical data based on the Hamming distance"
      */
 
     // Convert boolean to integer safely
@@ -385,7 +391,7 @@ double compute_loglikelihood(internal_state & state, aux_data & const_data) {
         const NumericVector & sigma = as<NumericVector>(state.sigma[cluster]);
         
         for (int j = 0; j < const_data.attrisize.length(); j++) {
-            loglikelihood += dhamming_pippo(const_data.data(i, j), 
+            loglikelihood += dhamming(const_data.data(i, j), 
                                     center[j], 
                                     sigma[j], 
                                     const_data.attrisize[j]);
@@ -438,6 +444,7 @@ NumericVector compute_frequencies(const NumericVector& data_col, const int m_j) 
      * @return NumericVector containing the frequencies
      * @note This function is used to compute the frequencies of values in a column
      */
+
     // Pre-allocate with zeros
     NumericVector freqs(m_j, 0.0);
     
@@ -451,10 +458,23 @@ NumericVector compute_frequencies(const NumericVector& data_col, const int m_j) 
     return freqs;
 }
 
-List Center_prob_pippo(const NumericMatrix& data, const IntegerVector& indices, 
-                        const NumericVector& sigma, const IntegerVector& attrisize) {
-    const int p = data.ncol(); // number of features
-    const int n = indices.size(); // number of data points in the cluster
+List compute_prob_centers(const NumericMatrix& data, 
+                        const IntegerVector& indices, 
+                        const NumericVector& sigma, 
+                        const IntegerVector& attrisize) {
+    /**
+    * @brief Compute probabilities for centers to be sampled
+    * @param data NumericMatrix containing the data
+    * @param indices IntegerVector containing the indices of the data points in the cluster
+    * @param sigma NumericVector containing the sigma values for the cluster
+    * @param attrisize IntegerVector containing the attribute sizes
+    * @return List containing the probabilities for each attribute
+    */
+
+    // number of features
+    const int p = data.ncol(); 
+    // number of data points in the cluster
+    const int n = indices.size(); 
     List prob(p);
 
     for(int j = 0; j < p; j++) {
@@ -489,18 +509,29 @@ List Center_prob_pippo(const NumericMatrix& data, const IntegerVector& indices,
 }
 
 void update_phi(internal_state& state, const aux_data& const_data, std::vector<int> cluster_indexes) {
+    /**
+    * @brief Update the parameters of the model
+    * @param state Internal state of the MCMC sampler
+    * @param const_data Auxiliary data for the MCMC algorithm
+    * @param cluster_indexes Vector of cluster indices to update
+    * @note This function is used to update the parameters of the model
+    *       based on the current state of the MCMC sampler
+    */
+
+    // Useful variables
     const int& num_cls = state.total_cls;
     const int n_rows = const_data.data.nrow();
     NumericVector new_w(const_data.attrisize.length());
     NumericVector new_v(const_data.attrisize.length());
 
-    // Use Sugar for cluster mask
+    // Cluster mask to update only the selected clusters if needed
     LogicalVector cluster_mask = LogicalVector(num_cls, cluster_indexes.empty());
     if (!cluster_indexes.empty()) {
         IntegerVector idx = wrap(cluster_indexes);
         cluster_mask[idx] = true;
     }
     
+    // update loop
     for (int i = 0; i < num_cls; i++) {
         if (!cluster_mask[i]) continue;
         
@@ -523,7 +554,7 @@ void update_phi(internal_state& state, const aux_data& const_data, std::vector<i
         */
         
         // Update center using optimized functions that work with indices
-        List prob_centers = Center_prob_pippo(const_data.data, indices, 
+        List prob_centers = compute_prob_centers(const_data.data, indices, 
                                             as<NumericVector>(state.sigma[i]), 
                                             const_data.attrisize);
         state.center[i] = sample_center_1_cluster(const_data.attrisize, prob_centers);

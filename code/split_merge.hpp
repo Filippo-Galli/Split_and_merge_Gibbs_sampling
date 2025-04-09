@@ -42,7 +42,6 @@ double merge_acc_prob(const internal_state & state_merge,
 
 int split_and_merge(internal_state & state,
                     const aux_data & const_data,
-                    int t, int r, int & idx_1_sm, 
-                    IntegerVector & gt);
+                    int t, int r, int & idx_1_sm);
 
 #endif // SPLIT_MERGE_HPP

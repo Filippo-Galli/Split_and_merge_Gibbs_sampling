@@ -1,7 +1,7 @@
-#include "split_merge.hpp"
+#include "./split_merge.hpp"
 #include <cmath>
-#include "common_functions.hpp"
-#include "hyperg.hpp"
+#include "./hyperg.hpp"
+#include "./common_functions.hpp"
 
 double logdensity_hig(double sigmaj, double v, double w, double m){
     /**
@@ -17,10 +17,13 @@ double logdensity_hig(double sigmaj, double v, double w, double m){
 
 }
 
-double logprobgs_phi(const internal_state & gamma_star, const internal_state & gamma,
-    const aux_data & const_data, const int & choosen_idx) {
+double logprobgs_phi(const internal_state & gamma_star, 
+                    const internal_state & gamma,
+                    const aux_data & const_data, 
+                    const int & choosen_idx) {
+
     /**
-    * @brief Compute the probability of the parameters - paper reference: P_{GS}(\phi*|phi^L, y)
+    * @brief Compute the probability of the parameters - paper (Jain and Neal 2007) reference: P_{GS}(\phi*|phi^L, y)
     * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
     * @param gamma state containing the launch cluster assignment, launch cluster centers, and launch cluster dispersions - paper reference: (c^L, \phi^L)
     * @param const_data auxiliary data for the MCMC algorithm containing the input data matrix, attribute sizes, and hypergeometric parameters
@@ -48,7 +51,7 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
     double log_center_prob = 0;
 
     // Prior probability of centers
-    const List& prob_centers = Center_prob_pippo(const_data.data, indices, 
+    const List& prob_centers = compute_prob_centers(const_data.data, indices, 
                                 gamma.sigma[gamma.c_i[choosen_idx]], 
                                 const_data.attrisize);
 
@@ -90,7 +93,12 @@ double logprobgs_phi(const internal_state & gamma_star, const internal_state & g
     return log_center_prob + log_sigma_prob;
 }
 
-double logprobgs_c_i(const internal_state & gamma_star, const internal_state & gamma, const aux_data & const_data, const std::vector<int> & S, const int i_1, const int i_2){
+double logprobgs_c_i(const internal_state & gamma_star, 
+                    const internal_state & gamma, 
+                    const aux_data & const_data, 
+                    const std::vector<int> & S, 
+                    const int i_1, 
+                    const int i_2){
     /**
      * @brief Compute the probability of the cluster assignment - paper reference: P_{GS}(c*|c^L, phi*, y)
      * @param gamma_star state containing the new cluster assignment, new cluster centers, and new cluster dispersions
@@ -113,11 +121,12 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
     int cls;
     int n_s_cls;
 
+    // for each observation s in S
     for (int s : S) {
         // extract datum at s
         const NumericVector& y_s = const_data.data(s, _);
 
-        // evaluate probabilities
+        // evaluate probabilities for both the 2 clusters
         for (int k = 0; k < 2; k++) {
             double Hamming = 0;
             
@@ -127,13 +136,14 @@ double logprobgs_c_i(const internal_state & gamma_star, const internal_state & g
                 cls = c_i_2;
 
             for (int j = 0; j < y_s.length(); j++) {
-                Hamming += dhamming_pippo(y_s[j], as<NumericVector>(gamma_star.center[cls])[j], 
+                Hamming += dhamming(y_s[j], as<NumericVector>(gamma_star.center[cls])[j], 
                             as<NumericVector>(gamma_star.sigma[cls])[j], const_data.attrisize[j]);
             }
 
             // Count instances in the cluster excluding the current point s
-            n_s_cls = sum(gamma.c_i == cls) - (gamma.c_i[s] == cls); //aux_state.c_i[s] == cls è false questo è uguale a 0
+            n_s_cls = sum(gamma.c_i == cls) - (gamma.c_i[s] == cls); 
             
+            // Set probability
             probs[k] = log(n_s_cls) + Hamming;
         }
 
@@ -187,7 +197,7 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
                     cls = c_i_2;
 
                 for (int j = 0; j < y_s.length(); j++) {
-                    Hamming += dhamming_pippo(y_s[j], as<NumericVector>(state.center[cls])[j], 
+                    Hamming += dhamming(y_s[j], as<NumericVector>(state.center[cls])[j], 
                                 as<NumericVector>(state.sigma[cls])[j], const_data.attrisize[j]);
                 }
 
@@ -206,10 +216,10 @@ void split_restricted_gibbs_sampler(const std::vector<int> & S, internal_state &
         }
 
         /*
-        * ------------------------ Update Centers ------------------------
+        * ------------------------ Update Parameters ------------------------
         */
-
         update_phi(state, const_data, {c_i_1, c_i_2});
+        // check consistency of the states
         validate_state(state, "split_restricted_gibbs_sampler - iteration " + std::to_string(iter));
     }
 }
@@ -221,9 +231,11 @@ void select_observations_deterministic(const internal_state & state, int & i_1, 
      * @param i_1 Index of the first chosen observation
      * @param i_2 Index of the second chosen observation
      * @param S Vector of indices of observations in the same cluster of i_1 or i_2
+     * @note this function performs a pseudo-deterministic selection of the two observations, one loop around each observation 
+     *       and the other is randomly selected from the remaining observations
      */
 
-        // indexes to choose from excluding i_1
+    // indexes to choose from excluding i_1
     IntegerVector indexes = seq(0, state.c_i.size() - 1);
     // Sample i_2 observations
     i_2 = sample(indexes, 1, false)[0];
@@ -255,6 +267,7 @@ void select_observations_random(const internal_state & state, int & i_1, int & i
      * @param i_1 Index of the first chosen observation
      * @param i_2 Index of the second chosen observation
      * @param S Vector of indices of observations in the same cluster of i_1 or i_2
+     * @note this function performs a random selection of the two observations
      */
 
     // Sample 2 observations
@@ -287,8 +300,13 @@ void select_observations_random(const internal_state & state, int & i_1, int & i
     }
 }
 
-void split_launch_state(const std::vector<int> & S,const internal_state & state,
-                                int i_1, int i_2, int t, const aux_data & const_data, internal_state & state_launch_split) {
+void split_launch_state(const std::vector<int> & S,
+                        const internal_state & state,
+                        int i_1, 
+                        int i_2, 
+                        int t, 
+                        const aux_data & const_data, 
+                        internal_state & state_launch_split) {
     /**
      * @brief Generate the launch state for the split move
      * @param S Vector of indices of observations in the same cluster of i_1 or i_2
@@ -305,8 +323,6 @@ void split_launch_state(const std::vector<int> & S,const internal_state & state,
 
     // Initialize split launch state
     state_launch_split = state;
-    //Rcpp::Rcout << "state_launch_split before" << std::endl;
-    //print_internal_state(state_launch_split, 2);
 
     // Initialize centers and sigmas based on cluster equality
     if (state.c_i[i_1] == state.c_i[i_2]) {
@@ -322,31 +338,15 @@ void split_launch_state(const std::vector<int> & S,const internal_state & state,
         state_launch_split.sigma[state.c_i[i_1]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
     }
     
-    
     // Sample new parameters for the clusters of i_2
     state_launch_split.center[state.c_i[i_2]] = sample_center_1_cluster(const_data.attrisize);
     state_launch_split.sigma[state.c_i[i_2]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
 
-    //Rcpp::Rcout << "state_launch_split after" << std::endl;
-    //print_internal_state(state_launch_split, 2);
-
     // Random allocation of S between clusters
     state_launch_split.c_i[S_indexes] = sample(IntegerVector::create(state_launch_split.c_i[i_1], state_launch_split.c_i[i_2]), S_indexes.length(), true);
 
-    // print state_launch_split in S_indexes
-    // Rcpp::Rcout << std::endl << "state_launch_split after random allocation before" << std::endl;
-    // for(int i = 0; i < S_indexes.length(); ++i) {
-    //     Rcpp::Rcout << state_launch_split.c_i[S_indexes[i]] << " ";
-    // }
-
     // Intermediate Gibbs sampling
     split_restricted_gibbs_sampler(S, state_launch_split, i_1, i_2, const_data, t);
-
-    // Rcpp::Rcout << std::endl << "state_launch_split after random allocation after" << std::endl;
-    // for(int i = 0; i < S_indexes.length(); ++i) {
-    //     Rcpp::Rcout << state_launch_split.c_i[S_indexes[i]] << " ";
-    // }
-    // Rcpp::Rcout << std::endl;
 
     validate_state(state_launch_split, "split_launch_state");
 }
@@ -379,31 +379,14 @@ void merge_launch_state(const std::vector<int> & S,
     state_launch_merge.center[state_launch_merge.c_i[i_2]] = sample_center_1_cluster(const_data.attrisize);
     state_launch_merge.sigma[state_launch_merge.c_i[i_2]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
 
-
-    // // Initialize merge launch state
-    // IntegerVector c_L_merge = clone(state.c_i);
-    // List center_L_merge = clone(state.center);
-    // List sigma_L_merge = clone(state.sigma);
-
-    // if(state.c_i[i_1] != state.c_i[i_2]) {
-    //     c_L_merge[i_1] = c_L_merge[i_2];
-    //     IntegerVector S_indexes = wrap(S);
-    //     c_L_merge[S_indexes] = c_L_merge[i_2];
-    // }
-
-    // // Draw new parameters for merged component
-    // center_L_merge[c_L_merge[i_2]] = sample_center_1_cluster(const_data.attrisize);
-    // sigma_L_merge[c_L_merge[i_2]] = sample_sigma_1_cluster(const_data.attrisize, const_data.v, const_data.w);
-
-    // state_launch_merge = {c_L_merge, center_L_merge, sigma_L_merge, static_cast<int>(unique_classes(c_L_merge).length())};
-
+    // clean the state
     clean_var(state_launch_merge, state_launch_merge, unique_classes(state_launch_merge.c_i), const_data.attrisize);                                 
 
     // Update parameters r times
     for(int iter = 0; iter < r; ++iter) 
         update_phi(state_launch_merge, const_data, {state_launch_merge.c_i[i_2]});
     
-
+    // check consistency of the states
     validate_state(state_launch_merge, "merge_launch_state");
 }
 
@@ -423,7 +406,7 @@ double loglikelihood_hamming(const internal_state & state, int c, const aux_data
     for (int i = 0; i < const_data.n; i++) {
         if(state.c_i[i] == c) {
             for (int j = 0; j < const_data.attrisize.length(); j++) {
-                loglikelihood += dhamming_pippo(const_data.data(i, j),
+                loglikelihood += dhamming(const_data.data(i, j),
                                       center[j],
                                       sigma[j],
                                       const_data.attrisize[j]);
@@ -446,7 +429,7 @@ double priors(const internal_state & state, int c, const aux_data & const_data){
 
     double priorg=0;
     for (int j = 0; j < sigma.length(); j++){
-        priorg -= log(const_data.attrisize[j]); // densità dell'uniforme è sempre 1/numero_modalità
+        priorg -= log(const_data.attrisize[j]); // denisity of the uniform is 1/attrisize[j]
         priorg += logdensity_hig(sigma[j], const_data.v[j], const_data.w[j], const_data.attrisize[j]);
     }
     return priorg;
@@ -485,25 +468,20 @@ double split_acc_prob(const internal_state & state_split,
     log_prior += priors(state_split, state_split.c_i[i_1], const_data);
     log_prior += priors(state_split, state_split.c_i[i_2], const_data);
     log_prior -= std::lgamma(static_cast<double>(sum(state.c_i == state.c_i[i_1])));
-    //Rcpp::Rcout << std::endl << "log_prior pre priors call: " << log_prior << std::endl;
     log_prior -= priors(state, state.c_i[i_1], const_data);
-    //Rcpp::Rcout << std::endl << "log_prior pre post call: " << log_prior << std::endl;
     
     // Likelihood ratio
     log_likelihood += loglikelihood_hamming(state_split, state_split.c_i[i_1], const_data);
     log_likelihood += loglikelihood_hamming(state_split, state_split.c_i[i_2], const_data);
     log_likelihood -= loglikelihood_hamming(state, state.c_i[i_1], const_data);
-    //Rcpp::Rcout << std::endl << "log_likelihood: " << log_likelihood << std::endl;
     
     // Proposal ratio
     log_proposal += logprobgs_phi(state, merge_launch, const_data, i_1);
     log_proposal -= logprobgs_phi(state_split, split_launch, const_data, i_1);
     log_proposal -= logprobgs_phi(state_split, split_launch, const_data, i_2);
     log_proposal -= logprobgs_c_i(state_split, split_launch, const_data, S, i_1, i_2);
-    //Rcpp::Rcout << std::endl << "log_proposal: " << log_proposal << std::endl;
     
-    //log_ratio = std::min(0.0, log_prior + log_likelihood + log_proposal);
-    log_ratio = log_prior + log_likelihood + log_proposal;
+    log_ratio = std::min(0.0, log_prior + log_likelihood + log_proposal);
     
     return log_ratio;
 }
@@ -513,7 +491,8 @@ double merge_acc_prob(const internal_state & state_merge,
                      const internal_state & split_launch,
                      const internal_state & merge_launch,
                      const std::vector<int> & S,
-                     int i_1, int i_2,
+                     int i_1, 
+                     int i_2,
                      const aux_data & const_data) {
     /**
      * @brief Compute the acceptance probability for the merge move
@@ -555,16 +534,16 @@ double merge_acc_prob(const internal_state & state_merge,
     log_proposal -= logprobgs_phi(state_merge, merge_launch, const_data, i_2);
 
     
-    //log_ratio = std::min(0.0, log_prior + log_likelihood + log_proposal);
-    log_ratio = log_prior + log_likelihood + log_proposal;
-
+    log_ratio = std::min(0.0, log_prior + log_likelihood + log_proposal);
+    
     return log_ratio;
 }
 
 int split_and_merge(internal_state & state,
                     const aux_data & const_data,
-                    int t, int r, int & idx_1_sm, 
-                    IntegerVector & gt) {
+                    int t, 
+                    int r, 
+                    int & idx_1_sm) {
     /**
      * @brief Perform the split and merge move
      * @param state Internal state of the MCMC algorithm
@@ -573,6 +552,7 @@ int split_and_merge(internal_state & state,
      * @param r Number of restricted Gibbs scans for the merge move 
      * @param idx_1_sm Index of the first chosen observation
      */
+     
     int i_1 = idx_1_sm;
     int i_2;
     std::vector<int> S;
@@ -581,7 +561,7 @@ int split_and_merge(internal_state & state,
     internal_state merge_launch = {IntegerVector(), List(), List(), 0};
     
     // Select observations and build S
-    select_observations_deterministic(state, i_1, i_2, S);
+    select_observations_random(state, i_1, i_2, S);
     
     // Create launch states
     split_launch_state(S, state, i_1, i_2, t, const_data, split_launch);
@@ -591,14 +571,15 @@ int split_and_merge(internal_state & state,
     double acpt_ratio = .999;
     
     bool split = false;
+    // Split case        
     if(state.c_i[i_1] == state.c_i[i_2]) {
         split = true;
-        // Split case        
         state_star = split_launch;
         split_restricted_gibbs_sampler(S, state_star, i_1, i_2, const_data);
         acpt_ratio = split_acc_prob(state_star, state, split_launch, merge_launch, S, i_1, i_2, const_data);
-    } else {
-        // Merge case        
+    } 
+    // Merge case        
+    else {
         state_star = merge_launch;
         update_phi(state_star, const_data, {state_star.c_i[i_2]});
         acpt_ratio = merge_acc_prob(state_star, state, split_launch, merge_launch, S, i_1, i_2, const_data);
@@ -608,82 +589,10 @@ int split_and_merge(internal_state & state,
     
     // Accept/reject step
     if(log(R::runif(0,1)) < acpt_ratio) {
-        // if((sum(state.c_i == state.c_i[i_1]) == 1 || sum(state.c_i == state.c_i[i_2]) == 1)) {
-        //     Rcpp::Rcout << "ACCETTATO - split: " << split << std::endl;
-        //     Rcpp::Rcout << std::endl << "[DEBUG] acpt_ratio: " << acpt_ratio << std::endl;
-        //     Rcpp::Rcout << std::endl << "[DEBUG] i_1: " << i_1  << " c_1: " << state.c_i[i_1] << " i_2: " << i_2 << " c_2: " << state.c_i[i_2] << std::endl;
-        //     Rcpp::Rcout << std::endl << "[DEBUG] i_1: " << i_1  << " state_star.c_1: " << state_star.c_i[i_1] << " i_2: " << i_2 << " state_star.c_2: " << state_star.c_i[i_2] << std::endl;
-
-        //     Rcpp::Rcout << "GT[c1]: " << std::endl;
-        //     for(int i = 0; i < S.size(); i++) {
-        //         if(state_star.c_i[S[i]] == state_star.c_i[i_1]) {
-        //             Rcpp::Rcout << gt[i] << " ";
-        //         }
-        //     }
-        //     Rcpp::Rcout << " " << gt[i_1] << " ";
-        //     Rcpp::Rcout << std::endl;
-        //     // Find indices manually
-        //     Rcpp::Rcout << "GT[c2]: " << std::endl;
-        //     for(int i = 0; i < S.size(); i++) {
-        //         if(state_star.c_i[S[i]] == state_star.c_i[i_2]) {
-        //             Rcpp::Rcout << gt[i] << " ";
-        //         }
-        //     }
-        //     Rcpp::Rcout << " " << gt[i_2] << " ";
-        //     Rcpp::Rcout << std::endl;
-
-        //     // Rcpp::Rcout << std::endl << "[DEBUG] merge_launch: " << std::endl;
-        //     // print_internal_state(merge_launch);
-        //     // Rcpp::Rcout << std::endl << "[DEBUG] split_launch: " << std::endl;
-        //     // print_internal_state(split_launch);
-
-        //     Rcpp::Rcout << std::endl << "[DEBUG] state_star: " << std::endl;
-        //     print_internal_state(state_star);
-        //     Rcpp::Rcout << "[DEBUG] state: " << std::endl;
-        //     print_internal_state(state);
-
-        // }
-
         clean_var(state, state_star, unique_classes(state_star.c_i), const_data.attrisize);
         validate_state(state, "split_and_merge - state");
 
         return 1;
-    }
-    else{
-        // if((sum(state.c_i == state.c_i[i_1]) == 1 || sum(state.c_i == state.c_i[i_2]) == 1)) {
-        //     Rcpp::Rcout << "NONACC - split: " << split << std::endl;
-        //     Rcpp::Rcout << std::endl << "[DEBUG] acpt_ratio: " << acpt_ratio << std::endl;
-        //     Rcpp::Rcout << std::endl << "[DEBUG] i_1: " << i_1  << " state.c_1: " << state.c_i[i_1] << " i_2: " << i_2 << " state.c_2: " << state.c_i[i_2] << std::endl;
-        //     Rcpp::Rcout << std::endl << "[DEBUG] i_1: " << i_1  << " state_star.c_1: " << state_star.c_i[i_1] << " i_2: " << i_2 << " state_star.c_2: " << state_star.c_i[i_2] << std::endl;
-        //     // Find indices manually
-        //     Rcpp::Rcout << "GT[c1]: " << std::endl;
-        //     for(int i = 0; i < S.size(); i++) {
-        //         if(state_star.c_i[S[i]] == state_star.c_i[i_1]) {
-        //             Rcpp::Rcout << gt[i] << " ";
-        //         }
-        //     }
-        //     Rcpp::Rcout << " " << gt[i_1] << " ";
-        //     Rcpp::Rcout << std::endl;
-        //     // Find indices manually
-        //     Rcpp::Rcout << "GT[c2]: " << std::endl;
-        //     for(int i = 0; i < S.size(); i++) {
-        //         if(state_star.c_i[S[i]] == state_star.c_i[i_2]) {
-        //             Rcpp::Rcout << gt[i] << " ";
-        //         }
-        //     }
-        //     Rcpp::Rcout << " " << gt[i_2] << " ";
-        //     Rcpp::Rcout << std::endl;
-        //     // Rcpp::Rcout << std::endl << "[DEBUG] merge_launch: " << std::endl;
-        //     // print_internal_state(merge_launch);
-        //     // Rcpp::Rcout << std::endl << "[DEBUG] split_launch: " << std::endl;
-        //     // print_internal_state(split_launch);
-
-        //     Rcpp::Rcout << std::endl << "[DEBUG] state_star: " << std::endl;
-        //     print_internal_state(state_star);
-        //     Rcpp::Rcout << "[DEBUG] state: " << std::endl;
-        //     print_internal_state(state);
-
-        // }
     }
     return 0;
 }
